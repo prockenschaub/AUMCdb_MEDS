@@ -27,6 +27,7 @@ def main(cfg: DictConfig):
 
     # Step 0: Data downloading
     if cfg.do_download:  # pragma: no cover
+        raise ValueError("Automatic downloading of AUMCdb is not currently supported.")
         if cfg.get("do_demo", False):
             logger.info("Downloading demo data.")
             download_data(raw_input_dir, dataset_info, do_demo=True)

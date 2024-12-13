@@ -4,6 +4,7 @@ output_dir: ???
 do_overwrite: false
 
 log_dir: ${output_dir}/.logs
+table_preprocessors_config_fp: src/AUMCdb_MEDS/configs/table_preprocessors.yaml
 
 # Hydra
 hydra:

@@ -1,20 +1,20 @@
-# Extract your custom dataset via MEDS-Transforms
+# AUMCdb MEDS Extraction ETL
 
-A template repository for a MEDS-Transforms powered extraction pipeline for a custom dataset.
+This pipeline extracts the AUMCdb dataset into MEDS format. 
 
-## How to use this repository
+## Usage:
 
-1. Initialize a new repository using this template repository.
-2. Customize the following points (explained below):
+```
+git clone https://github.com/prockenschaub/AUMCdb_MEDS.git
+cd AUMCdb_MEDS
+pip install .
+MEDS_extract-AUMCdb raw_input_dir=$RAW_INPUT_DIR pre_MEDS_dir=$PRE_MEDS_DIR MEDS_cohort_dir=$MEDS_COHORT_DIR
+```
 
-- [`src/.../dataset.yaml`](todo)
+> [!NOTE]
+> To use this repository, you first need to download the AUMCdb database and unzip it. Please refer to the [AUMCdb Github page](https://github.com/AmsterdamUMC/AmsterdamUMCdb) for more information on how to get access to the data. 
 
-### `dataset.yaml`
+## Examples:
 
-### `event_configs.yaml`
+There is currently no publically available demo dataset for AUMCdb. However, you can refer to the [MIMIC_IV_MEDS](https://github.com/mmcdermott/MIMIC_IV_MEDS) respository for an example of how to run a MEDS ETL pipeline. 
 
-### `pre_MEDS.py`
-
-### `download`
-
-### Other stuff

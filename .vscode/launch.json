@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "module": "AUMCdb_MEDS",
+            "console": "integratedTerminal",
+            "args": [
+                "raw_input_dir=/Users/patrick/datasets/AmsterdamUMCdb-v1.0.2", 
+                "pre_MEDS_dir=/Users/patrick/datasets/meds/tmp/premeds", 
+                "MEDS_cohort_dir=/Users/patrick/datasets/meds/tmp/cohort", 
+                "root_output_dir=/Users/patrick/datasets/meds/tmp", 
+                "do_download=False"
+            ]
+        }
+    ]
+}
