@@ -5,16 +5,17 @@
 See the docstring of `main` for more information.
 """
 
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-import hydra
 import polars as pl
-from loguru import logger
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
-from MEDS_transforms.utils import get_shard_prefix, hydra_loguru_init, write_lazyframe
+from MEDS_transforms.utils import get_shard_prefix, write_lazyframe
+
+logger = logging.getLogger(__name__)
 
 ADMISSION_ID = "admissionid"
 PATIENT_ID = "patientid"
@@ -187,8 +188,7 @@ def join_and_get_pseudotime_fntr(
     return fn
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="pre_MEDS")
-def main(cfg: DictConfig):
+def main(input_dir: str, output_dir: str, table_preprocessors_config_fp: str, do_overwrite: bool | None = None):
     """Performs pre-MEDS data wrangling for AUMCdb.
 
     Inputs are the raw AUMCdb files, read from the `input_dir` config parameter. Output files are written
@@ -196,9 +196,7 @@ def main(cfg: DictConfig):
     configuration parameters and logging.
     """
 
-    hydra_loguru_init()
-
-    table_preprocessors_config_fp = Path(cfg.table_preprocessors_config_fp)
+    table_preprocessors_config_fp = Path(table_preprocessors_config_fp)
     logger.info(f"Loading table preprocessors from {str(table_preprocessors_config_fp.resolve())}...")
     preprocessors = OmegaConf.load(table_preprocessors_config_fp)
     functions = {}
@@ -206,11 +204,17 @@ def main(cfg: DictConfig):
         logger.info(f"  Adding preprocessor for {table_name}:\n{OmegaConf.to_yaml(preprocessor_cfg)}")
         functions[table_name] = join_and_get_pseudotime_fntr(table_name=table_name, **preprocessor_cfg)
 
-    raw_cohort_dir = Path(cfg.input_dir)
-    MEDS_input_dir = Path(cfg.output_dir)
+    patient_out_fp = output_dir / "patient.parquet"
+    link_out_fp = output_dir / "link_patient_to_admission.parquet"
 
-    patient_out_fp = MEDS_input_dir / "patient.parquet"
-    link_out_fp = MEDS_input_dir / "link_patient_to_admission.parquet"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    done_fp = output_dir / ".done"
+
+    if done_fp.is_file() and not do_overwrite:
+        logger.info(f"Pre-MEDS transformation already complete as {str(done_fp.resolve())} exists and"
+                    f" do_overwrite={do_overwrite}")
+        exit(0)
 
     if patient_out_fp.is_file():
         logger.info(f"Reloading processed patient df from {str(patient_out_fp.resolve())}")
@@ -219,7 +223,7 @@ def main(cfg: DictConfig):
     else:
         logger.info("Processing patient table first...")
 
-        admissions_fp = raw_cohort_dir / "admissions.csv"
+        admissions_fp = input_dir / "admissions.csv"
         logger.info(f"Loading {str(admissions_fp.resolve())}...")
         raw_admissions_df = load_raw_aumc_file(admissions_fp)
 
@@ -230,12 +234,12 @@ def main(cfg: DictConfig):
 
     patient_df = patient_df.join(link_df, on=PATIENT_ID)
 
-    all_fps = [fp for fp in raw_cohort_dir.glob("*.csv")]
+    all_fps = [fp for fp in input_dir.glob("*.csv")]
 
     unused_tables = {}
 
     for in_fp in all_fps:
-        pfx = get_shard_prefix(raw_cohort_dir, in_fp)
+        pfx = get_shard_prefix(input_dir, in_fp)
         if pfx in unused_tables:
             logger.warning(f"Skipping {pfx} as it is not supported in this pipeline.")
             continue
@@ -243,7 +247,7 @@ def main(cfg: DictConfig):
             logger.warning(f"No function needed for {pfx}. For AUMCdb, THIS IS UNEXPECTED")
             continue
 
-        out_fp = MEDS_input_dir / f"{pfx}.parquet"
+        out_fp = output_dir / f"{pfx}.parquet"
 
         if out_fp.is_file():
             print(f"Done with {pfx}. Continuing")
@@ -260,8 +264,8 @@ def main(cfg: DictConfig):
         processed_df.sink_parquet(out_fp)
         logger.info(f"  * Processed and wrote to {str(out_fp.resolve())} in {datetime.now() - st}")
 
-    logger.info(f"Done! All dataframes processed and written to {str(MEDS_input_dir.resolve())}")
-
+    logger.info(f"Done! All dataframes processed and written to {str(output_dir.resolve())}")
+    done_fp.write_text(f"Finished at {datetime.now()}")
 
 if __name__ == "__main__":
     main()

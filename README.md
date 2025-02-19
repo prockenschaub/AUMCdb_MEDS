@@ -8,7 +8,7 @@ This pipeline extracts the AUMCdb dataset into MEDS format.
 git clone https://github.com/prockenschaub/AUMCdb_MEDS.git
 cd AUMCdb_MEDS
 pip install .
-MEDS_extract-AUMCdb raw_input_dir=$RAW_INPUT_DIR pre_MEDS_dir=$PRE_MEDS_DIR MEDS_cohort_dir=$MEDS_COHORT_DIR
+MEDS_extract-AUMCdb input_dir=$RAW_DATA_DIR output_dir=$MEDS_DIR
 ```
 
 > [!NOTE]

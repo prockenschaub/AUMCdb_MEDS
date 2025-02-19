@@ -7,11 +7,14 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from . import ETL_CFG, EVENT_CFG, HAS_PRE_MEDS, MAIN_CFG, PRE_MEDS_PY, RUNNER_CFG
+from . import ETL_CFG, EVENT_CFG, HAS_PRE_MEDS, MAIN_CFG, RUNNER_CFG
 from . import __version__ as PKG_VERSION
 from . import dataset_info
 from .commands import run_command
 from .download import download_data
+
+if HAS_PRE_MEDS:
+    from .pre_MEDS import main as pre_MEDS_transform
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 def main(cfg: DictConfig):
     """Runs the end-to-end MEDS Extraction pipeline."""
 
-    raw_input_dir = Path(cfg.raw_input_dir)
+    raw_input_dir = Path(cfg.input_dir)
     pre_MEDS_dir = Path(cfg.pre_MEDS_dir)
     MEDS_cohort_dir = Path(cfg.MEDS_cohort_dir)
     stage_runner_fp = cfg.get("stage_runner_fp", None)
@@ -39,13 +42,12 @@ def main(cfg: DictConfig):
 
     # Step 1: Pre-MEDS Data Wrangling
     if HAS_PRE_MEDS:
-        command_parts = [
-            "python",
-            str(PRE_MEDS_PY),
-            f"input_dir={raw_input_dir}",
-            f"output_dir={pre_MEDS_dir}",
-        ]
-        run_command(command_parts, cfg)
+        pre_MEDS_transform(
+            raw_input_dir,
+            pre_MEDS_dir,
+            cfg.table_preprocessors_config_fp,
+            cfg.get("do_overwrite", None),
+        )
     else:
         pre_MEDS_dir = raw_input_dir
 
