@@ -27,16 +27,19 @@ def main(cfg: DictConfig):
     pre_MEDS_dir = Path(cfg.pre_MEDS_dir)
     MEDS_cohort_dir = Path(cfg.MEDS_cohort_dir)
     stage_runner_fp = cfg.get("stage_runner_fp", None)
+    output_dir = Path(cfg.output_dir)
 
     # Step 0: Data downloading
     if cfg.do_download:  # pragma: no cover
-        raise ValueError("Automatic downloading of AUMCdb is not currently supported.")
-        if cfg.get("do_demo", False):
-            logger.info("Downloading demo data.")
-            download_data(raw_input_dir, dataset_info, do_demo=True)
-        else:
-            logger.info("Downloading data.")
-            download_data(raw_input_dir, dataset_info)
+        raw_input_dir = output_dir / "raw_input"
+        raw_input_dir.mkdir(parents=True, exist_ok=True)
+        # raise ValueError("Automatic downloading of AUMCdb is not currently supported.")
+        # if cfg.get("do_demo", False):
+        #     logger.info("Downloading demo data.")
+        #     download_data(raw_input_dir, dataset_info, do_demo=True)
+        # else:
+        logger.info("Downloading data.")
+        download_data(raw_input_dir, dataset_info)
     else:  # pragma: no cover
         logger.info("Skipping data download.")
 

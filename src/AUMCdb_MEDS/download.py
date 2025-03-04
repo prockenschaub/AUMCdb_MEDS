@@ -1,3 +1,6 @@
+import logging
+import zipfile
+from getpass import getpass
 from pathlib import Path
 
 from omegaconf import DictConfig
@@ -8,7 +11,6 @@ from .commands import run_command
 def download_data(
     output_dir: Path,
     dataset_info: DictConfig,
-    do_demo: bool = False,
     runner_fn: callable = run_command,
 ):
     """Downloads the data specified in dataset_info.dataset_urls to the output_dir.
@@ -37,7 +39,7 @@ def download_data(
         >>> download_data(Path("data"), cfg, runner_fn=fake_shell_succeed)
         wget -r -N -c -np -nH --directory-prefix data http://example.com/dataset
         wget -r -N -c -np -nH --directory-prefix data http://example.com/common
-        >>> download_data(Path("data"), cfg, runner_fn=fake_shell_succeed, do_demo=True)
+        >>> download_data(Path("data"), cfg, runner_fn=fake_shell_succeed)
         wget -r -N -c -np -nH --directory-prefix data http://example.com/demo
         wget -r -N -c -np -nH --directory-prefix data http://example.com/common
         >>> download_data(Path("data"), cfg, runner_fn=fake_shell_fail)
@@ -49,31 +51,28 @@ def download_data(
         wget -r -N -c -np -nH --directory-prefix data_out --user foo --ask-password http://example.com/data
     """
 
-    if do_demo:
-        urls = dataset_info.urls.get("demo", [])
-    else:
-        urls = dataset_info.urls.get("dataset", [])
+    url = dataset_info.urls.get("dataset", [])
+    output_file = output_dir / "AUMCdb.zip"
 
-    urls += dataset_info.urls.get("common", [])
+    if output_file.exists():
+        logging.info(f"Removing existing file {output_file}")
+        output_file.unlink()
 
-    for url in urls:
-        if isinstance(url, (dict, DictConfig)):
-            username = url.get("username", None)
-            url = url.url
-        else:
-            username = None
+    key = dataset_info.get("api_key", None)
+    if key is None:
+        key = getpass("Enter your API Token: ")
 
-        command_parts = ["wget -r -N -c -np -nH --directory-prefix", f"{output_dir}"]
+    command_parts = ["curl", "-L", "-o", str(output_file), "-H", f"X-Dataverse-key:{key}", url]
 
-        url_parts = url[url.find("://") + 3 :].split("/")[1:]
-        if len(url_parts) > 1:
-            command_parts.append(f"--cut-dirs {len(url_parts) - 1}")
+    try:
+        runner_fn(command_parts)
+    except ValueError as e:
+        raise ValueError(f"Failed to download data from {url}") from e
 
-        if username:
-            command_parts.append(f"--user {username} --ask-password")
-        command_parts.append(url)
+    with zipfile.ZipFile(output_file, "r") as zip_ref:
+        zip_ref.extractall(output_dir)
+    logging.info(f"Downloaded and extracted data to {output_dir}")
 
-        try:
-            runner_fn(command_parts)
-        except ValueError as e:
-            raise ValueError(f"Failed to download data from {url}") from e
+    if output_file.exists():
+        logging.info(f"Removing existing file {output_file}")
+        output_file.unlink()

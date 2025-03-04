@@ -11,9 +11,8 @@ from datetime import datetime
 from pathlib import Path
 
 import polars as pl
-from omegaconf import OmegaConf
-
 from MEDS_transforms.utils import get_shard_prefix, write_lazyframe
+from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +106,7 @@ def join_and_get_pseudotime_fntr(
             - "unit"
             - "registeredby"
             - "updatedby"
-        exclude_rows: 
+        exclude_rows:
             measuredat: -1899
         warning_items:
             - "How should we deal with `registeredat` and `updatedat`?"
@@ -159,11 +158,8 @@ def join_and_get_pseudotime_fntr(
         The output of this process is ultimately converted to events via the `{table_name}` key in the
         `configs/event_configs.yaml` file.
         """
-        if exclude_rows is not None: 
-            filter_exprs = [
-                pl.col(col_name).ne(val)
-                for col_name, val in exclude_rows.items()
-            ]
+        if exclude_rows is not None:
+            filter_exprs = [pl.col(col_name).ne(val) for col_name, val in exclude_rows.items()]
             df = df.filter(*filter_exprs)
 
         pseudotimes = [
@@ -188,7 +184,9 @@ def join_and_get_pseudotime_fntr(
     return fn
 
 
-def main(input_dir: str, output_dir: str, table_preprocessors_config_fp: str, do_overwrite: bool | None = None):
+def main(
+    input_dir: str, output_dir: str, table_preprocessors_config_fp: str, do_overwrite: bool | None = None
+):
     """Performs pre-MEDS data wrangling for AUMCdb.
 
     Inputs are the raw AUMCdb files, read from the `input_dir` config parameter. Output files are written
@@ -212,8 +210,10 @@ def main(input_dir: str, output_dir: str, table_preprocessors_config_fp: str, do
     done_fp = output_dir / ".done"
 
     if done_fp.is_file() and not do_overwrite:
-        logger.info(f"Pre-MEDS transformation already complete as {str(done_fp.resolve())} exists and"
-                    f" do_overwrite={do_overwrite}")
+        logger.info(
+            f"Pre-MEDS transformation already complete as {str(done_fp.resolve())} exists and"
+            f" do_overwrite={do_overwrite}"
+        )
         exit(0)
 
     if patient_out_fp.is_file():
@@ -266,6 +266,7 @@ def main(input_dir: str, output_dir: str, table_preprocessors_config_fp: str, do
 
     logger.info(f"Done! All dataframes processed and written to {str(output_dir.resolve())}")
     done_fp.write_text(f"Finished at {datetime.now()}")
+
 
 if __name__ == "__main__":
     main()
