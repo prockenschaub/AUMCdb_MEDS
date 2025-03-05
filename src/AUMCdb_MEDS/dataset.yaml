@@ -11,5 +11,3 @@ urls:
     - url: "https://lifesciences.datastations.nl/api/access/datafile/27884"
       api_key: ${oc.env:AUMCDB_API_KEY}
       output_file: "numeric_items.zip"
-
-

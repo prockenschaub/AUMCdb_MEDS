@@ -44,7 +44,7 @@ def download_data(
     if do_demo:
         raise ValueError("Demo download is not currently available for AUMCdb.")
     else:
-        urls = dataset_info.get("urls",[]) #.get(["numeric_items","dataset"], [])
+        urls = dataset_info.get("urls", [])  # .get(["numeric_items","dataset"], [])
 
         for i, entry in enumerate(urls):
             url = urls[entry][0].get("url", None)
@@ -63,9 +63,7 @@ def download_data(
                 logging.info(f"Removing existing file {output_file}")
                 output_file.unlink()
             command_parts = ["cd", str(output_dir), "&&"]
-            # curl -L -O -J -H "X-Dataverse-key:$API_TOKEN"
             command_parts.extend(["curl", "-L", "-O", "-J", "-H", f"X-Dataverse-key:{key}", url])
-            # command_parts = ["curl", "-L", "--output-dir", str(output_file), "-H", f"X-Dataverse-key:{key}", url]
 
             try:
                 runner_fn(command_parts)
