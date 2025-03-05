@@ -6,3 +6,10 @@ urls:
   dataset:
     - url: "https://lifesciences.datastations.nl/api/access/dataset/:persistentId/?persistentId=doi:10.17026/dans-22u-f8vd"
       api_key: ${oc.env:AUMCDB_API_KEY}
+      output_file: "dataverse_files.zip"
+  numeric_items:
+    - url: "https://lifesciences.datastations.nl/api/access/datafile/27884"
+      api_key: ${oc.env:AUMCDB_API_KEY}
+      output_file: "numeric_items.zip"
+
+

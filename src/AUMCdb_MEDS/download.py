@@ -44,24 +44,28 @@ def download_data(
     if do_demo:
         raise ValueError("Demo download is not currently available for AUMCdb.")
     else:
-        urls = dataset_info.urls.get("dataset", [])
+        urls = dataset_info.get("urls",[]) #.get(["numeric_items","dataset"], [])
 
         for i, entry in enumerate(urls):
-            url = entry.get("url", None)
+            url = urls[entry][0].get("url", None)
             if url is None:
                 url = input("Enter the download link: ")
 
-            key = entry.get("api_key", None)
+            key = urls[entry][0].get("api_key", None)
             if key is None:
                 key = getpass("Enter your API Token: ")
 
-            output_file = output_dir / f"AUMCdb_{i}.zip"
+            output_file = urls[entry][0].get("output_file", None)
 
-            if output_file.exists():
+            # output_file = output_dir #/ f"AUMCdb_{i}"
+
+            if (output_dir / output_file).exists():
                 logging.info(f"Removing existing file {output_file}")
                 output_file.unlink()
-
-            command_parts = ["curl", "-L", "-o", str(output_file), "-H", f"X-Dataverse-key:{key}", url]
+            command_parts = ["cd", str(output_dir), "&&"]
+            # curl -L -O -J -H "X-Dataverse-key:$API_TOKEN"
+            command_parts.extend(["curl", "-L", "-O", "-J", "-H", f"X-Dataverse-key:{key}", url])
+            # command_parts = ["curl", "-L", "--output-dir", str(output_file), "-H", f"X-Dataverse-key:{key}", url]
 
             try:
                 runner_fn(command_parts)
