@@ -125,11 +125,14 @@ def join_and_get_pseudotime_fntr(
         `process_patient_and_admissions` function. Both inputs are expected to be `pl.DataFrame`s.
 
     Examples:
-        >>> func = join_and_get_pseudotime_fntr("numericitems", ["measuredat", "registeredat", "updatedat"],
-        ["measuredattime", "registeredattime", "updatedattime"],
-        ["item", "value", "unit", "registeredby", "updatedby"],
-        {"measuredat": -1899},
-        ["How should we deal with `registeredat` and `updatedat`?"])`
+        >>> func = join_and_get_pseudotime_fntr(
+        ...     "numericitems",
+        ...     ["measuredat", "registeredat", "updatedat"],
+        ...     ["measuredattime", "registeredattime", "updatedattime"],
+        ...     ["item", "value", "unit", "registeredby", "updatedby"],
+        ...     {"measuredat": -1899},
+        ...     ["How should we deal with `registeredat` and `updatedat`?"]
+        ... )
         >>> df = load_raw_aumc_file(in_fp)
         >>> raw_admissions_df = load_raw_aumc_file(Path("admissions.csv"))
         >>> patient_df, link_df = process_patient_and_admissions(raw_admissions_df)
