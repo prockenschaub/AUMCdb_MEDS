@@ -26,7 +26,7 @@ def download_data(
 
     Examples:
         >>> cfg = DictConfig({
-        ...     "url": "http://example.com/dataset",
+        ...     "dataset_url": "http://example.com/dataset",
         ...     "api_key": "[MY_API_KEY]"
         ... })
         >>> def fake_shell_succeed(cmd):
@@ -34,18 +34,10 @@ def download_data(
         >>> def fake_shell_fail(cmd):
         ...     raise ValueError(f"Failed to run {' '.join(cmd)}")
         >>> download_data(Path("data"), cfg, runner_fn=fake_shell_succeed)
-        wget -r -N -c -np -nH --directory-prefix data http://example.com/dataset
-        wget -r -N -c -np -nH --directory-prefix data http://example.com/common
-        >>> download_data(Path("data"), cfg, runner_fn=fake_shell_fail)
-        Traceback (most recent call last):
-            ...
-        ValueError: Failed to download data from http://example.com/dataset
-        >>> cfg = DictConfig({"urls": {"dataset": [{"url": "http://example.com/data", "username": "foo"}]}})
-        >>> download_data(Path("data_out"), cfg, runner_fn=fake_shell_succeed)
-        wget -r -N -c -np -nH --directory-prefix data_out --user foo --ask-password http://example.com/data
+        curl -L -o data/AUMCdb.zip -H X-Dataverse-key:[MY_API_KEY] http://example.com/dataset
     """
 
-    url = dataset_info.urls.get("dataset", None)
+    url = dataset_info.get("dataset_url", None)
     if url is None:
         url = getpass("Enter the download link: ")
 
