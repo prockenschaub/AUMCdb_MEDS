@@ -32,7 +32,7 @@ def main(cfg: DictConfig):
     # Step 0: Data downloading
     if cfg.do_download:  # pragma: no cover
         if cfg.input_dir:
-            if any(Path(cfg.input_dir).iterdir()):
+            if raw_input_dir.exists() and any(raw_input_dir.iterdir()):
                 raise ValueError(
                     f"Input directory {cfg.input_dir} is not empty. "
                     f"Please specify an empty directory to download AUMCdb. "
