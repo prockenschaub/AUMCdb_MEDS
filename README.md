@@ -20,4 +20,5 @@ here: [AUMCdb API Key](https://lifesciences.datastations.nl/dataverseuser.xhtml?
 export AUMCDB_API_KEY=your_api_key
 MEDS_extract-AUMCdb input_dir=$RAW_DATA_DIR output_dir=$MEDS_DIR
 ```
+
 This will download the dataset automatically for you.

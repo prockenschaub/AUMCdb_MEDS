@@ -46,9 +46,9 @@ def download_data(
     """
 
     url = dataset_info.get("url", None)
-    if url is None: 
+    if url is None:
         url = getpass("Enter the download link: ")
-    
+
     output_file = output_dir / "AUMCdb.zip"
 
     if output_file.exists():
