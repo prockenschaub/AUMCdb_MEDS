@@ -1,7 +1,3 @@
-import subprocess
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
 # Reactive if demo becomes available
 # def test_e2e():
 #     with TemporaryDirectory() as temp_dir:

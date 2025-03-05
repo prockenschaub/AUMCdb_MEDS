@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 @hydra.main(version_base=None, config_path=str(MAIN_CFG.parent), config_name=MAIN_CFG.stem)
 def main(cfg: DictConfig):
     """Runs the end-to-end MEDS Extraction pipeline."""
-
-    raw_input_dir = Path(cfg.input_dir)
+    if cfg.input_dir:
+        raw_input_dir = Path(cfg.input_dir)
     pre_MEDS_dir = Path(cfg.pre_MEDS_dir)
     MEDS_cohort_dir = Path(cfg.MEDS_cohort_dir)
     stage_runner_fp = cfg.get("stage_runner_fp", None)
@@ -35,7 +35,10 @@ def main(cfg: DictConfig):
         raw_input_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Downloading data.")
         download_data(raw_input_dir, dataset_info)
-    else:  # pragma: no cover
+    elif not cfg.input_dir:
+        raise ValueError("No input directory specified and download is disabled.")
+    else:
+        # pragma: no cover
         logger.info("Skipping data download.")
 
     # Step 1: Pre-MEDS Data Wrangling

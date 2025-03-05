@@ -45,7 +45,7 @@ def download_data(
         wget -r -N -c -np -nH --directory-prefix data_out --user foo --ask-password http://example.com/data
     """
 
-    url = dataset_info.get("url", None)
+    url = dataset_info.urls.get("dataset", None)
     if url is None:
         url = getpass("Enter the download link: ")
 
