@@ -28,10 +28,10 @@ def download_data(
     Examples:
         >>> cfg = DictConfig({
         ...     "urls": {
-        ...         "dataset": {
+        ...         "dataset": [{
         ...             "url": "http://example.com/dataset",
         ...             "api_key": "abcdefg123"
-        ...         }
+        ...         }]
         ...     }
         ... })
         >>> def fake_shell_succeed(cmd):
@@ -43,33 +43,34 @@ def download_data(
     if do_demo:
         raise ValueError("Demo download is not currently available for AUMCdb.")
     else:
-        urls = dataset_info.urls.get("dataset", {})
-        
-        url = urls.get("url", None)
-        if url is None:
-            url = input("Enter the download link: ")
-        
-        key = urls.get("api_key", None)
-        if key is None:
-            key = getpass("Enter your API Token: ")
+        urls = dataset_info.urls.get("dataset", [])
 
-    output_file = output_dir / "AUMCdb.zip"
+        for i, entry in enumerate(urls):
+            url = entry.get("url", None)
+            if url is None:
+                url = input("Enter the download link: ")
+            
+            key = entry.get("api_key", None)
+            if key is None:
+                key = getpass("Enter your API Token: ")
 
-    if output_file.exists():
-        logging.info(f"Removing existing file {output_file}")
-        output_file.unlink()
+            output_file = output_dir / f"AUMCdb_{i}.zip"
 
-    command_parts = ["curl", "-L", "-o", str(output_file), "-H", f"X-Dataverse-key:{key}", url]
+            if output_file.exists():
+                logging.info(f"Removing existing file {output_file}")
+                output_file.unlink()
 
-    try:
-        runner_fn(command_parts)
-    except ValueError as e:
-        raise ValueError(f"Failed to download data from {url}") from e
+            command_parts = ["curl", "-L", "-o", str(output_file), "-H", f"X-Dataverse-key:{key}", url]
 
-    with zipfile.ZipFile(output_file, "r") as zip_ref:
-        zip_ref.extractall(output_dir)
-    logging.info(f"Downloaded and extracted data to {output_dir}")
+            try:
+                runner_fn(command_parts)
+            except ValueError as e:
+                raise ValueError(f"Failed to download data from {url}") from e
 
-    if output_file.exists():
-        logging.info(f"Removing existing file {output_file}")
-        output_file.unlink()
+            with zipfile.ZipFile(output_file, "r") as zip_ref:
+                zip_ref.extractall(output_dir)
+            logging.info(f"Downloaded and extracted data to {output_dir}")
+
+            if output_file.exists():
+                logging.info(f"Removing zipped file {output_file}")
+                output_file.unlink()
