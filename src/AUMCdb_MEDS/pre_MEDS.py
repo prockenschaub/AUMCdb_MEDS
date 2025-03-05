@@ -133,7 +133,7 @@ def join_and_get_pseudotime_fntr(
         ...     {"measuredat": -1899},
         ...     ["How should we deal with `registeredat` and `updatedat`?"]
         ... )
-        >>> df = load_raw_aumc_file(in_fp)
+        >>> df = load_raw_aumc_file(Path("numericitems.csv"))
         >>> raw_admissions_df = load_raw_aumc_file(Path("admissions.csv"))
         >>> patient_df, link_df = process_patient_and_admissions(raw_admissions_df)
         >>> processed_df = func(df, patient_df)
