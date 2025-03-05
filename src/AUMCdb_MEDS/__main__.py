@@ -33,7 +33,7 @@ def main(cfg: DictConfig):
     if cfg.do_download:  # pragma: no cover
         raw_input_dir = output_dir / "raw_input"
         raw_input_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Downloading data.")
+        logger.info(f"Downloading data into {raw_input_dir}.")
         download_data(raw_input_dir, dataset_info)
     elif not cfg.input_dir:
         raise ValueError("No input directory specified and download is disabled.")
