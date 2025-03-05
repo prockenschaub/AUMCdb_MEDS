@@ -22,22 +22,23 @@ logger = logging.getLogger(__name__)
 @hydra.main(version_base=None, config_path=str(MAIN_CFG.parent), config_name=MAIN_CFG.stem)
 def main(cfg: DictConfig):
     """Runs the end-to-end MEDS Extraction pipeline."""
-
-    raw_input_dir = Path(cfg.input_dir)
+    if cfg.input_dir:
+        raw_input_dir = Path(cfg.input_dir)
     pre_MEDS_dir = Path(cfg.pre_MEDS_dir)
     MEDS_cohort_dir = Path(cfg.MEDS_cohort_dir)
     stage_runner_fp = cfg.get("stage_runner_fp", None)
+    output_dir = Path(cfg.output_dir)
 
     # Step 0: Data downloading
     if cfg.do_download:  # pragma: no cover
-        raise ValueError("Automatic downloading of AUMCdb is not currently supported.")
-        if cfg.get("do_demo", False):
-            logger.info("Downloading demo data.")
-            download_data(raw_input_dir, dataset_info, do_demo=True)
-        else:
-            logger.info("Downloading data.")
-            download_data(raw_input_dir, dataset_info)
-    else:  # pragma: no cover
+        raw_input_dir = output_dir / "raw_input"
+        raw_input_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Downloading data into {raw_input_dir}.")
+        download_data(raw_input_dir, dataset_info)
+    elif not cfg.input_dir:
+        raise ValueError("No input directory specified and download is disabled.")
+    else:
+        # pragma: no cover
         logger.info("Skipping data download.")
 
     # Step 1: Pre-MEDS Data Wrangling

@@ -31,7 +31,7 @@ numericitems:
     - "unit"
     - "registeredby"
     - "updatedby"
-  exclude_rows: 
+  exclude_rows:
     measuredat: -1899
   warning_items:
     - "How should we deal with `registeredat` and `updatedat`?"
@@ -52,7 +52,7 @@ listitems:
     - "islabresult"
     - "registeredby"
     - "updatedby"
-  exclude_rows: 
+  exclude_rows:
     measuredat: -1899
   warning_items:
     - "How should we deal with `registeredat` and `updatedat`?"
@@ -74,7 +74,7 @@ freetextitems:
     - "islabresult"
     - "registeredby"
     - "updatedby"
-  exclude_rows: 
+  exclude_rows:
     measuredat: -1899
   warning_items:
     - "How should we deal with `registeredat` and `updatedat`?"

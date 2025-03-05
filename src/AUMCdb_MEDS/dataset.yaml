@@ -2,9 +2,6 @@ dataset_name: AUMCdb
 raw_dataset_version: 1.0.2
 dataset_description: ???
 
-dataset_download_username: ${oc.env:DATASET_DOWNLOAD_USERNAME}
+api_key: ${oc.env:AUMCDB_API_KEY}
 
-urls:
-  dataset: null
-  demo: null
-  common: null
+dataset_url: "https://lifesciences.datastations.nl/api/access/dataset/:persistentId/?persistentId=doi:10.17026/dans-22u-f8vd"
