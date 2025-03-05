@@ -33,7 +33,12 @@ def main(cfg: DictConfig):
     if cfg.do_download:  # pragma: no cover
         if cfg.input_dir:
             if any(Path(cfg.input_dir).iterdir()):
-                raise ValueError(f"Input directory {cfg.input_dir} is not empty. Please specify an empty directory to download AUMCdb. Alternatively, if no input directory is specified, the data will be downloaded to the output directory.")
+                raise ValueError(
+                    f"Input directory {cfg.input_dir} is not empty. "
+                    f"Please specify an empty directory to download AUMCdb. "
+                    f"Alternatively, if no input directory is specified, "
+                    f"the data will be downloaded to the output directory. "
+                )
         else:
             raw_input_dir = output_dir / "raw_input"
         raw_input_dir.mkdir(parents=True, exist_ok=True)

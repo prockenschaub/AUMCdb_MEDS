@@ -19,7 +19,8 @@ def download_data(
     Args:
         output_dir: The directory to download the data to.
         dataset_info: The dataset information containing the URLs to download.
-        do_demo: Not currently available for AUMCdb; retained for compatibility but will raise an error if True.
+        do_demo: Not currently available for AUMCdb; retained for compatibility
+            but will raise an error if True.
         runner_fn: The function to run the command with (added for dependency injection).
 
     Raises:
@@ -49,7 +50,7 @@ def download_data(
             url = entry.get("url", None)
             if url is None:
                 url = input("Enter the download link: ")
-            
+
             key = entry.get("api_key", None)
             if key is None:
                 key = getpass("Enter your API Token: ")
