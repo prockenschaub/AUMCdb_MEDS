@@ -217,7 +217,7 @@ def main(
             f"Pre-MEDS transformation already complete as {str(done_fp.resolve())} exists and"
             f" do_overwrite={do_overwrite}"
         )
-        exit(0)
+        return
 
     if patient_out_fp.is_file():
         logger.info(f"Reloading processed patient df from {str(patient_out_fp.resolve())}")
