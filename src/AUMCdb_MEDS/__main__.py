@@ -7,7 +7,14 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from . import ETL_CFG, EVENT_CFG, HAS_PRE_MEDS, MAIN_CFG, RUNNER_CFG
+from . import (
+    DEFAULT_TABLE_PREPROCESSORS_CFG,
+    ETL_CFG,
+    EVENT_CFG,
+    HAS_PRE_MEDS,
+    MAIN_CFG,
+    RUNNER_CFG,
+)
 from . import __version__ as PKG_VERSION
 from . import dataset_info
 from .commands import run_command
@@ -52,10 +59,12 @@ def main(cfg: DictConfig):
 
     # Step 1: Pre-MEDS Data Wrangling
     if HAS_PRE_MEDS:
+        if (table_preprocessors_config_fp := cfg.table_preprocessors_config_fp) is None:
+            table_preprocessors_config_fp = DEFAULT_TABLE_PREPROCESSORS_CFG
         pre_MEDS_transform(
             raw_input_dir,
             pre_MEDS_dir,
-            cfg.table_preprocessors_config_fp,
+            table_preprocessors_config_fp,
             cfg.get("do_overwrite", None),
         )
     else:

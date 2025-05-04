@@ -188,7 +188,10 @@ def join_and_get_pseudotime_fntr(
 
 
 def main(
-    input_dir: str, output_dir: str, table_preprocessors_config_fp: str, do_overwrite: bool | None = None
+    input_dir: str,
+    output_dir: str,
+    table_preprocessors_config_fp: str | Path,
+    do_overwrite: bool | None = None,
 ):
     """Performs pre-MEDS data wrangling for AUMCdb.
 

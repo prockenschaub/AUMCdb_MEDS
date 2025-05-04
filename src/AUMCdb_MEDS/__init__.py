@@ -16,6 +16,7 @@ RUNNER_CFG = files(__package_name__).joinpath("configs/runner.yaml")
 PRE_MEDS_PY = files(__package_name__).joinpath("pre_MEDS.py")
 PRE_MEDS_CFG = files(__package_name__).joinpath("configs/pre_MEDS.yaml")
 DATASET_CFG = files(__package_name__).joinpath("dataset.yaml")
+DEFAULT_TABLE_PREPROCESSORS_CFG = files(__package_name__).joinpath("configs/table_preprocessors.yaml")
 
 dataset_info = OmegaConf.load(DATASET_CFG)
 
