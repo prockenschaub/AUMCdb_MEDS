@@ -1,5 +1,5 @@
 default_language_version:
-  python: python3.12
+  python: python3
 
 exclude: "docs/index.md|MIMIC-IV_Example/README.md|eICU_Example/README.md|AUMCdb_Example/README.md"
 

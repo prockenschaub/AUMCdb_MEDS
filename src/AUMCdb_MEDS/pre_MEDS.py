@@ -188,7 +188,10 @@ def join_and_get_pseudotime_fntr(
 
 
 def main(
-    input_dir: str, output_dir: str, table_preprocessors_config_fp: str, do_overwrite: bool | None = None
+    input_dir: str,
+    output_dir: str,
+    table_preprocessors_config_fp: str | Path,
+    do_overwrite: bool | None = None,
 ):
     """Performs pre-MEDS data wrangling for AUMCdb.
 
@@ -217,7 +220,7 @@ def main(
             f"Pre-MEDS transformation already complete as {str(done_fp.resolve())} exists and"
             f" do_overwrite={do_overwrite}"
         )
-        exit(0)
+        return
 
     if patient_out_fp.is_file():
         logger.info(f"Reloading processed patient df from {str(patient_out_fp.resolve())}")
