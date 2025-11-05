@@ -1,4 +1,6 @@
-abstract: The AUMCdb MEDS ETL
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: The AUMCdb MEDS ETL
 authors:
 - affiliation: Hasso Plattner Institute
   family-names: Robin van de Water
@@ -6,6 +8,7 @@ authors:
   family-names: Patrick Rockenschaub
 - affiliation: Snowflake
   family-names: Pawel Renc
-cff-version: 1.2.0
 date-released: '2025-11-05'
 doi: 10.5281/zenodo.17531825
+repository-code: "https://github.com/prockenschaub/AUMCdb_MEDS"
+license: "MIT"
