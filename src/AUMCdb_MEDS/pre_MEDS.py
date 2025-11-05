@@ -38,7 +38,9 @@ def load_raw_aumc_file(fp: Path, **kwargs) -> pl.LazyFrame:
         │ 1           ┆ 1      ┆ "Pulse"              ┆ 0        ┆ 100000    ┆ 100000   │
         └─────────────┴────────┴──────────────────────┴──────────┴───────────┴──────────┘
     """
-    return pl.scan_csv(fp, infer_schema_length=10000000, encoding="utf8-lossy", **kwargs)
+    return pl.scan_csv(
+        fp, infer_schema_length=10000000, encoding="utf8-lossy", **kwargs
+    )
 
 
 def process_patient_and_admissions(df: pl.LazyFrame) -> pl.LazyFrame:
@@ -53,7 +55,9 @@ def process_patient_and_admissions(df: pl.LazyFrame) -> pl.LazyFrame:
     """
 
     origin_pseudotime = pl.datetime(
-        year=pl.col("admissionyeargroup").str.extract(r"(2003|2010)").cast(pl.Int32), month=1, day=1
+        year=pl.col("admissionyeargroup").str.extract(r"(2003|2010)").cast(pl.Int32),
+        month=1,
+        day=1,
     )
 
     # TODO: consider using better logic to infer date of birth for patients
@@ -67,8 +71,12 @@ def process_patient_and_admissions(df: pl.LazyFrame) -> pl.LazyFrame:
     ).ceil()
     age_in_days = age_in_years * 365.25
     # We assume that the patient was born at the midpoint of the year as we don't know the actual birthdate
-    pseudo_date_of_birth = origin_pseudotime - pl.duration(days=(age_in_days - 365.25 / 2))
-    pseudo_date_of_death = origin_pseudotime + pl.duration(milliseconds=pl.col("dateofdeath"))
+    pseudo_date_of_birth = origin_pseudotime - pl.duration(
+        days=(age_in_days - 365.25 / 2)
+    )
+    pseudo_date_of_death = origin_pseudotime + pl.duration(
+        milliseconds=pl.col("dateofdeath")
+    )
 
     return df.filter(pl.col("admissioncount") == 1).select(
         PATIENT_ID,
@@ -162,11 +170,15 @@ def join_and_get_pseudotime_fntr(
         `configs/event_configs.yaml` file.
         """
         if exclude_rows is not None:
-            filter_exprs = [pl.col(col_name).ne(val) for col_name, val in exclude_rows.items()]
+            filter_exprs = [
+                pl.col(col_name).ne(val) for col_name, val in exclude_rows.items()
+            ]
             df = df.filter(*filter_exprs)
 
         pseudotimes = [
-            (pl.col("firstadmittedattime") + pl.duration(milliseconds=pl.col(offset))).alias(pseudotime)
+            (
+                pl.col("firstadmittedattime") + pl.duration(milliseconds=pl.col(offset))
+            ).alias(pseudotime)
             for pseudotime, offset in zip(pseudotime_col, offset_col)
         ]
 
@@ -201,12 +213,18 @@ def main(
     """
 
     table_preprocessors_config_fp = Path(table_preprocessors_config_fp)
-    logger.info(f"Loading table preprocessors from {str(table_preprocessors_config_fp.resolve())}...")
+    logger.info(
+        f"Loading table preprocessors from {str(table_preprocessors_config_fp.resolve())}..."
+    )
     preprocessors = OmegaConf.load(table_preprocessors_config_fp)
     functions = {}
     for table_name, preprocessor_cfg in preprocessors.items():
-        logger.info(f"  Adding preprocessor for {table_name}:\n{OmegaConf.to_yaml(preprocessor_cfg)}")
-        functions[table_name] = join_and_get_pseudotime_fntr(table_name=table_name, **preprocessor_cfg)
+        logger.info(
+            f"  Adding preprocessor for {table_name}:\n{OmegaConf.to_yaml(preprocessor_cfg)}"
+        )
+        functions[table_name] = join_and_get_pseudotime_fntr(
+            table_name=table_name, **preprocessor_cfg
+        )
 
     patient_out_fp = output_dir / "patient.parquet"
     link_out_fp = output_dir / "link_patient_to_admission.parquet"
@@ -223,7 +241,9 @@ def main(
         return
 
     if patient_out_fp.is_file():
-        logger.info(f"Reloading processed patient df from {str(patient_out_fp.resolve())}")
+        logger.info(
+            f"Reloading processed patient df from {str(patient_out_fp.resolve())}"
+        )
         patient_df = pl.read_parquet(patient_out_fp, use_pyarrow=True).lazy()
         link_df = pl.read_parquet(link_out_fp, use_pyarrow=True).lazy()
     else:
@@ -250,7 +270,9 @@ def main(
             logger.warning(f"Skipping {pfx} as it is not supported in this pipeline.")
             continue
         elif pfx not in functions:
-            logger.warning(f"No function needed for {pfx}. For AUMCdb, THIS IS UNEXPECTED")
+            logger.warning(
+                f"No function needed for {pfx}. For AUMCdb, THIS IS UNEXPECTED"
+            )
             continue
 
         out_fp = output_dir / f"{pfx}.parquet"
@@ -268,9 +290,13 @@ def main(
         df = load_raw_aumc_file(in_fp)
         processed_df = fn(df, patient_df)
         processed_df.sink_parquet(out_fp)
-        logger.info(f"  * Processed and wrote to {str(out_fp.resolve())} in {datetime.now() - st}")
+        logger.info(
+            f"  * Processed and wrote to {str(out_fp.resolve())} in {datetime.now() - st}"
+        )
 
-    logger.info(f"Done! All dataframes processed and written to {str(output_dir.resolve())}")
+    logger.info(
+        f"Done! All dataframes processed and written to {str(output_dir.resolve())}"
+    )
     done_fp.write_text(f"Finished at {datetime.now()}")
 
 

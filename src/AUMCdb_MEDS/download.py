@@ -63,7 +63,9 @@ def download_data(
                 logging.info(f"Removing existing file {output_file}")
                 output_file.unlink()
             command_parts = ["cd", str(output_dir), "&&"]
-            command_parts.extend(["curl", "-L", "-O", "-J", "-H", f"X-Dataverse-key:{key}", url])
+            command_parts.extend(
+                ["curl", "-L", "-O", "-J", "-H", f"X-Dataverse-key:{key}", url]
+            )
 
             try:
                 runner_fn(command_parts)
