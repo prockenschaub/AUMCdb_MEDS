@@ -1,0 +1,16 @@
+abstract: The AUMCdb MEDS ETL
+authors:
+- affiliation: Hasso Plattner Institute
+  family-names: Robin van de Water
+- affiliation: Medical University Innsbruck
+  family-names: Patrick Rockenschaub
+- affiliation: Snowflake
+  family-names: Pawel Renc
+cff-version: 1.2.0
+date-released: '2025-11-05'
+doi: 10.5281/zenodo.17531825
+identifiers:
+- type: swh
+  value: swh:1:dir:4ea49684fc40de18fc098141e7189317843d2a2f;origin=https://doi.org/10.5281/zenodo.17531824;visit=swh:1:snp:bb7d4f477ea1a01ee9b46a32c2ce7ff9b18ae9eb;anchor=swh:1:rel:aaab5bcb88303dfd510d65638f4541149bc032d6;path=prockenschaub-AUMCdb_MEDS-9f66b79
+license:
+- mit
