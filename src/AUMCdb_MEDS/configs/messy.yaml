@@ -1,14 +1,26 @@
 # MESSY config for the AmsterdamUMCdb MEDS ETL (MEDS-Extract >= 0.7).
 #
-# This single file replaces what used to be spread across four places:
-#   - `dataset.yaml`               -> the `sources:` block below
-#   - `download.py`                -> the `sources:` block below
-#   - `configs/ETL.yaml`           -> the `etl:` block below (the stage DAG is now canonical)
-#   - `configs/event_configs.yaml` -> the event tables below, rewritten in dftly
+# This is the WHOLE ETL. There is no Python in this package -- `sources:` fetches and unpacks the
+# raw data, `etl:` carries the run options, and the event tables below do the conversion,
+# including everything the old `pre_MEDS.py` used to do in polars.
 #
-# Run the whole ETL with:
 #   meds-extract-run spec=AUMCdb output_dir=$OUTPUT_DIR
-# (see README.md; `AUMCdb` is registered via the `MEDS_extract.pipelines` entry point).
+#
+# ---------------------------------------------------------------------------
+# HOW THE PSEUDO-TIMESTAMPS WORK
+#
+# AUMCdb stores only OFFSETS (in milliseconds) from a per-admission origin; absolute times are
+# not meaningful, only relative differences. The old pre-MEDS step reconstructed an origin per
+# admission and added the offsets. That is now `_table.cols`:
+#
+#   _origin      = January 1st of the admission's year group (2003 or 2010)
+#   <x>time      = _origin + <x> milliseconds
+#
+# `::milliseconds` is not a dftly unit, so offsets are converted as `($ms / 1000)::seconds`,
+# which is exact -- polars' seconds duration carries sub-second precision.
+#
+# Cast chains must be fully parenthesized: `((($x)::int)::year)::datetime`, not `$x::int::year`.
+# ---------------------------------------------------------------------------
 
 sources:
   dataset_version: 1.0.2
@@ -17,8 +29,8 @@ sources:
   # API key passed as a request header rather than via HTTP Basic auth.
   #
   # Both entries are zips, unpacked in place by the download layer's post-fetch unarchive
-  # (`cleanup_archive: true` removes the archive afterwards, matching what the old
-  # `download.py` did). Extraction is zip-slip validated before any bytes are written.
+  # (`cleanup_archive: true` removes the archive afterwards). Extraction is zip-slip validated
+  # before any bytes are written.
   dataset:
     - type: http
       headers:
@@ -43,25 +55,44 @@ _defaults:
 # ---------------------------------------------------------------------------
 # NOTE ON NULL HANDLING
 #
-# Under 0.6.x a null component of an interpolated code was silently rendered as the literal
-# "UNK" and the row was kept. In 0.7.0 a composite code null-propagates and the row is DROPPED.
-# Every component below is therefore coalesced with `?? 'UNK'` to preserve the previous
-# row-retention behaviour exactly. Where a null component *should* drop the row instead, remove
-# the corresponding `?? 'UNK'` -- that is a data-modelling decision for the maintainers.
+# Under 0.6.x a null component of an interpolated code was silently rendered as "UNK" and the row
+# kept. In 0.7.0 a composite code null-propagates and the row is DROPPED, so every component is
+# coalesced with `?? 'UNK'` to preserve the previous behaviour. Where a null SHOULD drop the row,
+# remove the `?? 'UNK'` -- that is a data-modelling decision for the maintainers.
 # ---------------------------------------------------------------------------
 
-patient:
+admissions:
+  _table:
+    cols:
+      # January 1st of the admission year group ("2003-2010" -> 2003).
+      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      # agegroup is a band ("40-49", "80+"); the old code took the ceil of its midpoint.
+      # `ceil(n/2)` for integers is `(n + 1) / 2` truncated, since dftly has no ceil().
+      _age_lo: {regex_extract: {pattern: {literal: '^(\d{2})'}, source: {column: agegroup}, group_index: {literal: 1}}}
+      _age_hi: {regex_extract: {pattern: {literal: '(\d{2}).?$'}, source: {column: agegroup}, group_index: {literal: 1}}}
+      _age_years: '(($_age_lo::int + $_age_hi::int + 1) / 2)::int'
+      # Born at the midpoint of the birth year, so subtract half a year less than the full age.
+      _age_days: '$_age_years * 365.25 - 182.625'
+      dateofbirth: '$_origin - $_age_days::days'
+      dateofdeath_t: '$_origin + ($dateofdeath / 1000)::seconds'
+      admittedattime: '$_origin + ($admittedat / 1000)::seconds'
+      dischargedattime: '$_origin + ($dischargedat / 1000)::seconds'
+
+  # --- Patient-level events. -------------------------------------------------
+  # The old pre-MEDS built a separate `patient` table with `.filter(admissioncount == 1)`. MESSY
+  # has no row filter, but a null `code` drops the row, so the conditional below is equivalent:
+  # these three events are emitted only for a patient's first admission.
   dob:
-    code: MEDS_BIRTH
+    code: '"MEDS_BIRTH" if $admissioncount == 1'
     time: $dateofbirth
   gender:
-    code: 'f"GENDER//{$gender ?? ''UNK''}"'
+    code: 'f"GENDER//{$gender ?? ''UNK''}" if $admissioncount == 1'
     time: null
   dod:
-    code: MEDS_DEATH
-    time: $dateofdeath
+    code: '"MEDS_DEATH" if $admissioncount == 1'
+    time: $dateofdeath_t
 
-admissions:
+  # --- Admission-level events. -----------------------------------------------
   icu_admission:
     code: >-
       f"ICU_ADMISSION//{$location ?? 'UNK'}//{$urgency ?? 'UNK'}//{$origin ?? 'UNK'}//{$specialty ?? 'UNK'}"
@@ -76,31 +107,70 @@ admissions:
     code: 'f"HEIGHT_AT_ADMISSION//{$heightsource ?? ''UNK''}//{$heightgroup ?? ''UNK''}"'
     time: $admittedattime
 
+# ---------------------------------------------------------------------------
+# Every other table keys on `admissionid` only, so each joins `admissions` for the subject id and
+# the year group, then rebuilds `_origin` locally. (`_table.join` reads the raw source file, so it
+# cannot see another table's derived columns -- hence the small repetition.)
+#
+# `measuredat == -1899` rows are dropped, as before: the old pre-MEDS filtered them out because
+# they leak information from the future. Here the computed time is null for those rows, and
+# null-time rows are dropped with a logged count.
+# ---------------------------------------------------------------------------
+
 numericitems:
+  _table:
+    join:
+      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+    cols:
+      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      measuredattime: '$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899'
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$unit ?? ''UNK''}"'
     time: $measuredattime
-    # NB: `numeric_value: value` in the 0.6.x config was a raw-column read. A bare string is a
-    # LITERAL in dftly, so the `$` prefix here is load-bearing.
     numeric_value: $value
 
 listitems:
+  _table:
+    join:
+      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+    cols:
+      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      measuredattime: '$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899'
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}//{$value ?? ''UNK''}"'
     time: $measuredattime
 
 freetextitems:
+  _table:
+    join:
+      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+    cols:
+      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      measuredattime: '$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899'
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}"'
     time: $measuredattime
     text_value: $value
 
 procedureorderitems:
+  _table:
+    join:
+      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+    cols:
+      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      registeredattime: '$_origin + ($registeredat / 1000)::seconds'
   event:
     code: 'f"PROCEDURE//{$ordercategoryname ?? ''UNK''}//{$item ?? ''UNK''}"'
     time: $registeredattime
 
 processitems:
+  _table:
+    join:
+      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+    cols:
+      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      starttime: '$_origin + ($start / 1000)::seconds'
+      stoptime: '$_origin + ($stop / 1000)::seconds'
   start:
     code: 'f"PROCESS//START//{$item ?? ''UNK''}"'
     time: $starttime
@@ -109,6 +179,13 @@ processitems:
     time: $stoptime
 
 drugitems:
+  _table:
+    join:
+      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+    cols:
+      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      starttime: '$_origin + ($start / 1000)::seconds'
+      stoptime: '$_origin + ($stop / 1000)::seconds'
   start:
     code: >-
       f"DRUG//START//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$action ?? 'UNK'}"
