@@ -29,6 +29,18 @@ def cfg() -> MessyConfig:
     return MessyConfig.load(MESSY_CFG)
 
 
+@pytest.fixture
+def dummy_credentials(monkeypatch):
+    """Satisfy the `${oc.env:...}` interpolations in the `sources:` block.
+
+    `selected_sources()` resolves interpolations for the selected bucket, so inspecting the
+    declared sources needs the credential vars to exist. The values are never used -- nothing here
+    touches the network -- but without this the test only passes on a machine that happens to have
+    real credentials exported.
+    """
+    monkeypatch.setenv("AUMCDB_API_KEY", "not-a-real-key")
+
+
 def test_messy_config_parses(cfg: MessyConfig):
     """Every event table, code expression, and time cast in the config is valid dftly."""
     tables = cfg.event_tables
@@ -64,6 +76,20 @@ def test_value_columns_are_column_reads_not_literals(cfg: MessyConfig):
 
     freetext = by_prefix["freetextitems"].events[0]
     assert "value" in freetext.referenced_columns
+
+
+def test_dataverse_zips_declare_unarchive(cfg: MessyConfig, dummy_credentials):
+    """Both DataVerse entries are unpacked by the download layer, not by ETL code.
+
+    The old `download.py` called `ZipFile(...).extractall(...)` inline; 0.7's download layer does
+    it post-fetch with zip-slip validation, so `cleanup_archive: true` reproduces the old
+    behaviour of removing the archive afterwards.
+    """
+    files = [rf for src in cfg.selected_sources("dataset") for rf in src.files]
+    assert files, "no files declared in the `dataset` bucket"
+    for rf in files:
+        assert rf.unarchive == "zip", rf.rel_path
+        assert rf.cleanup_archive is True, rf.rel_path
 
 
 def test_etl_block(cfg: MessyConfig):

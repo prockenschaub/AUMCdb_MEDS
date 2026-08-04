@@ -15,6 +15,10 @@ sources:
 
   # AmsterdamUMCdb is distributed through the DANS DataVerse, which authenticates with an
   # API key passed as a request header rather than via HTTP Basic auth.
+  #
+  # Both entries are zips, unpacked in place by the download layer's post-fetch unarchive
+  # (`cleanup_archive: true` removes the archive afterwards, matching what the old
+  # `download.py` did). Extraction is zip-slip validated before any bytes are written.
   dataset:
     - type: http
       headers:
@@ -22,8 +26,12 @@ sources:
       urls:
         - url: https://lifesciences.datastations.nl/api/access/dataset/:persistentId/?persistentId=doi:10.17026/dans-22u-f8vd
           rel_path: dataverse_files.zip
+          unarchive: zip
+          cleanup_archive: true
         - url: https://lifesciences.datastations.nl/api/access/datafile/27884
           rel_path: numeric_items.zip
+          unarchive: zip
+          cleanup_archive: true
 
 etl:
   dataset_name: AUMCdb

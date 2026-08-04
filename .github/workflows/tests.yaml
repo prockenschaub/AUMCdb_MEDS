@@ -42,7 +42,7 @@ jobs:
       # `--doctest-modules`, and fixing those is out of scope here.
       - name: Run doctests
         run: |
-          pytest --doctest-modules src/AUMCdb_MEDS/utils.py src/AUMCdb_MEDS/unpack.py -v
+          pytest --doctest-modules src/AUMCdb_MEDS/utils.py -v
 
 #      - name: Upload coverage to Codecov
 #        uses: codecov/codecov-action@v4.0.1
