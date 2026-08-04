@@ -22,6 +22,7 @@ from omegaconf import DictConfig
 
 from . import MAIN_CFG, MESSY_CFG, PIPELINE_NAME
 from .pre_MEDS import main as pre_MEDS_transform
+from .unpack import unpack_archives
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,10 @@ def main(cfg: DictConfig):
         )
     else:  # pragma: no cover
         logger.info("Skipping data download.")
+
+    # Step 0b: Unpack the downloaded archives. MEDS-Extract's download layer has no post-fetch
+    # archive unpack yet (mmcdermott/MEDS_extract#92), so this stays a local step for now.
+    unpack_archives(raw_input_dir, do_overwrite=cfg.get("do_overwrite", False))
 
     # Step 1: Pre-MEDS data wrangling.
     pre_MEDS_transform(

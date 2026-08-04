@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import polars as pl
-from MEDS_transforms.utils import get_shard_prefix, write_lazyframe
+from AUMCdb_MEDS.utils import get_shard_prefix, write_lazyframe
 from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)

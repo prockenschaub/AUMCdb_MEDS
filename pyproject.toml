@@ -42,3 +42,8 @@ AUMCdb = "AUMCdb_MEDS.configs:messy.yaml"
 [project.urls]
 Homepage = "https://github.com/prockenschaub/AUMCdb_MEDS"
 Issues = "https://github.com/prockenschaub/AUMCdb_MEDS/issues"
+
+[tool.pytest.ini_options]
+# `--doctest-modules` is scoped to the modules CI passes on the command line. The doctests in
+# `utils.py` / `unpack.py` are the API-level tests for those helpers.
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
