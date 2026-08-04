@@ -1,0 +1,120 @@
+# MESSY config for the AmsterdamUMCdb MEDS ETL (MEDS-Extract >= 0.7).
+#
+# This single file replaces what used to be spread across four places:
+#   - `dataset.yaml`               -> the `sources:` block below
+#   - `download.py`                -> the `sources:` block below
+#   - `configs/ETL.yaml`           -> the `etl:` block below (the stage DAG is now canonical)
+#   - `configs/event_configs.yaml` -> the event tables below, rewritten in dftly
+#
+# Run the whole ETL with:
+#   meds-extract-run spec=AUMCdb output_dir=$OUTPUT_DIR
+# (see README.md; `AUMCdb` is registered via the `MEDS_extract.pipelines` entry point).
+
+sources:
+  dataset_version: 1.0.2
+
+  # AmsterdamUMCdb is distributed through the DANS DataVerse, which authenticates with an
+  # API key passed as a request header rather than via HTTP Basic auth.
+  dataset:
+    - type: http
+      headers:
+        X-Dataverse-key: ${oc.env:AUMCDB_API_KEY}
+      urls:
+        - url: https://lifesciences.datastations.nl/api/access/dataset/:persistentId/?persistentId=doi:10.17026/dans-22u-f8vd
+          rel_path: dataverse_files.zip
+        - url: https://lifesciences.datastations.nl/api/access/datafile/27884
+          rel_path: numeric_items.zip
+
+etl:
+  dataset_name: AUMCdb
+  n_subjects_per_shard: 1000
+
+_defaults:
+  subject_id: $patientid
+
+# ---------------------------------------------------------------------------
+# NOTE ON NULL HANDLING
+#
+# Under 0.6.x a null component of an interpolated code was silently rendered as the literal
+# "UNK" and the row was kept. In 0.7.0 a composite code null-propagates and the row is DROPPED.
+# Every component below is therefore coalesced with `?? 'UNK'` to preserve the previous
+# row-retention behaviour exactly. Where a null component *should* drop the row instead, remove
+# the corresponding `?? 'UNK'` -- that is a data-modelling decision for the maintainers.
+# ---------------------------------------------------------------------------
+
+patient:
+  dob:
+    code: MEDS_BIRTH
+    time: $dateofbirth
+  gender:
+    code: 'f"GENDER//{$gender ?? ''UNK''}"'
+    time: null
+  dod:
+    code: MEDS_DEATH
+    time: $dateofdeath
+
+admissions:
+  icu_admission:
+    code: >-
+      f"ICU_ADMISSION//{$location ?? 'UNK'}//{$urgency ?? 'UNK'}//{$origin ?? 'UNK'}//{$specialty ?? 'UNK'}"
+    time: $admittedattime
+  icu_discharge:
+    code: 'f"ICU_DISCHARGE//{$destination ?? ''UNK''}"'
+    time: $dischargedattime
+  weight:
+    code: 'f"WEIGHT_AT_ADMISSION//{$weightsource ?? ''UNK''}//{$weightgroup ?? ''UNK''}"'
+    time: $admittedattime
+  height:
+    code: 'f"HEIGHT_AT_ADMISSION//{$heightsource ?? ''UNK''}//{$heightgroup ?? ''UNK''}"'
+    time: $admittedattime
+
+numericitems:
+  event:
+    code: 'f"MEASURE//{$item ?? ''UNK''}//{$unit ?? ''UNK''}"'
+    time: $measuredattime
+    # NB: `numeric_value: value` in the 0.6.x config was a raw-column read. A bare string is a
+    # LITERAL in dftly, so the `$` prefix here is load-bearing.
+    numeric_value: $value
+
+listitems:
+  event:
+    code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}//{$value ?? ''UNK''}"'
+    time: $measuredattime
+
+freetextitems:
+  event:
+    code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}"'
+    time: $measuredattime
+    text_value: $value
+
+procedureorderitems:
+  event:
+    code: 'f"PROCEDURE//{$ordercategoryname ?? ''UNK''}//{$item ?? ''UNK''}"'
+    time: $registeredattime
+
+processitems:
+  start:
+    code: 'f"PROCESS//START//{$item ?? ''UNK''}"'
+    time: $starttime
+  end:
+    code: 'f"PROCESS//END//{$item ?? ''UNK''}"'
+    time: $stoptime
+
+drugitems:
+  start:
+    code: >-
+      f"DRUG//START//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$action ?? 'UNK'}"
+    time: $starttime
+  rate:
+    code: >-
+      f"DRUG//RATE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$rateunit ?? 'UNK'}"
+    time: $starttime
+    numeric_value: $rate
+  dose:
+    code: >-
+      f"DRUG//DOSE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$doseunit ?? 'UNK'}"
+    time: $starttime
+    numeric_value: $dose
+  end:
+    code: 'f"DRUG//END//{$ordercategory ?? ''UNK''}//{$item ?? ''UNK''}"'
+    time: $stoptime

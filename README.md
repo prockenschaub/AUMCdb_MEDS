@@ -29,3 +29,31 @@ MEDS_extract-AUMCdb input_dir=$RAW_DATA_DIR output_dir=$MEDS_DIR
 ```
 
 This will download the dataset automatically for you.
+
+## Configuration
+
+The entire ETL is described by one file, `src/AUMCdb_MEDS/configs/messy.yaml` — a
+[MESSY](https://github.com/mmcdermott/MEDS_extract) config carrying three sections:
+
+- **`sources:`** — where the raw data lives. `meds-extract-download` stages it, with SHA-256
+    verification and resumable transfers. AmsterdamUMCdb's DANS DataVerse API key is passed as
+    an `X-Dataverse-key` request header, read from `${oc.env:AUMCDB_API_KEY}` so the credential
+    never lands in the config, the logs, or the output tree. This replaces the old `download.py`.
+- **`etl:`** — the dataset name plus curated stage options (`n_subjects_per_shard`).
+- **the event tables** — what to extract, written in
+    [dftly](https://github.com/mmcdermott/dftly) expressions.
+
+Because the config is registered under the `MEDS_extract.pipelines` entry-point group, the
+extraction half is runnable directly, without this package's CLI wrapper:
+
+```bash
+# Stage the raw data only:
+meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR
+
+# Run the canonical 8-stage pipeline over already-pre-MEDS'd data:
+meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR download_key=null input_dir=$PRE_MEDS_DIR
+```
+
+The `MEDS_extract-AUMCdb` wrapper still exists because AmsterdamUMCdb needs a pre-MEDS step that
+MESSY cannot yet express: unzipping the DataVerse archives and deriving the patient table's
+pseudo-timestamps from admission offsets.
