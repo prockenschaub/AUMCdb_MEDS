@@ -67,18 +67,26 @@ admissions:
   _table:
     cols:
       # January 1st of the admission year group ("2003-2010" -> 2003).
-      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
+      _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
       # agegroup is a band ("40-49", "80+"); the old code took the ceil of its midpoint.
       # `ceil(n/2)` for integers is `(n + 1) / 2` truncated, since dftly has no ceil().
-      _age_lo: {regex_extract: {pattern: {literal: '^(\d{2})'}, source: {column: agegroup}, group_index: {literal: 1}}}
-      _age_hi: {regex_extract: {pattern: {literal: '(\d{2}).?$'}, source: {column: agegroup}, group_index: {literal: 1}}}
-      _age_years: '(($_age_lo::int + $_age_hi::int + 1) / 2)::int'
+      _age_lo:
+        regex_extract:
+          pattern: { literal: '^(\d{2})' }
+          source: { column: agegroup }
+          group_index: { literal: 1 }
+      _age_hi:
+        regex_extract:
+          pattern: { literal: '(\d{2}).?$' }
+          source: { column: agegroup }
+          group_index: { literal: 1 }
+      _age_years: "(($_age_lo::int + $_age_hi::int + 1) / 2)::int"
       # Born at the midpoint of the birth year, so subtract half a year less than the full age.
-      _age_days: '$_age_years * 365.25 - 182.625'
-      dateofbirth: '$_origin - $_age_days::days'
-      dateofdeath_t: '$_origin + ($dateofdeath / 1000)::seconds'
-      admittedattime: '$_origin + ($admittedat / 1000)::seconds'
-      dischargedattime: '$_origin + ($dischargedat / 1000)::seconds'
+      _age_days: "$_age_years * 365.25 - 182.625"
+      dateofbirth: "$_origin - $_age_days::days"
+      dateofdeath_t: "$_origin + ($dateofdeath / 1000)::seconds"
+      admittedattime: "$_origin + ($admittedat / 1000)::seconds"
+      dischargedattime: "$_origin + ($dischargedat / 1000)::seconds"
 
   # --- Patient-level events. -------------------------------------------------
   # The old pre-MEDS built a separate `patient` table with `.filter(admissioncount == 1)`. MESSY
@@ -122,10 +130,10 @@ admissions:
 numericitems:
   _table:
     join:
-      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+      admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
-      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
-      measuredattime: '$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899'
+      _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
+      measuredattime: "$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899"
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$unit ?? ''UNK''}"'
     time: $measuredattime
@@ -134,10 +142,10 @@ numericitems:
 listitems:
   _table:
     join:
-      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+      admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
-      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
-      measuredattime: '$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899'
+      _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
+      measuredattime: "$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899"
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}//{$value ?? ''UNK''}"'
     time: $measuredattime
@@ -145,10 +153,10 @@ listitems:
 freetextitems:
   _table:
     join:
-      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+      admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
-      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
-      measuredattime: '$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899'
+      _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
+      measuredattime: "$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899"
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}"'
     time: $measuredattime
@@ -157,10 +165,10 @@ freetextitems:
 procedureorderitems:
   _table:
     join:
-      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+      admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
-      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
-      registeredattime: '$_origin + ($registeredat / 1000)::seconds'
+      _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
+      registeredattime: "$_origin + ($registeredat / 1000)::seconds"
   event:
     code: 'f"PROCEDURE//{$ordercategoryname ?? ''UNK''}//{$item ?? ''UNK''}"'
     time: $registeredattime
@@ -168,11 +176,11 @@ procedureorderitems:
 processitems:
   _table:
     join:
-      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+      admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
-      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
-      starttime: '$_origin + ($start / 1000)::seconds'
-      stoptime: '$_origin + ($stop / 1000)::seconds'
+      _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
+      starttime: "$_origin + ($start / 1000)::seconds"
+      stoptime: "$_origin + ($stop / 1000)::seconds"
   start:
     code: 'f"PROCESS//START//{$item ?? ''UNK''}"'
     time: $starttime
@@ -183,11 +191,11 @@ processitems:
 drugitems:
   _table:
     join:
-      admissions: {key: admissionid, cols: [patientid, admissionyeargroup]}
+      admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
-      _origin: '(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime'
-      starttime: '$_origin + ($start / 1000)::seconds'
-      stoptime: '$_origin + ($stop / 1000)::seconds'
+      _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
+      starttime: "$_origin + ($start / 1000)::seconds"
+      stoptime: "$_origin + ($stop / 1000)::seconds"
   start:
     code: >-
       f"DRUG//START//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$action ?? 'UNK'}"
