@@ -1,0 +1,37 @@
+# Smoke-tests the MESSY config without access to AmsterdamUMCdb: MESSY_synth infers the raw
+# table shapes from the config, writes fake source files, and the real ETL runs over them.
+
+name: Synthetic ETL for MESSY files using MESSY_synth
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, "release/*", "dev", "feat/*"]
+
+jobs:
+  synthetic-etl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        # MESSY-synth requires Python >= 3.12.
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install packages
+        run: |
+          pip install . MESSY-synth
+
+      - name: Generate and extract synthetic data
+        run: |
+          MESSY-synth AUMCdb -o raw_synthetic/ --explain
+          meds-extract-run spec=AUMCdb output_dir=./aumcdb_meds_synth input_dir=raw_synthetic do_download=false
