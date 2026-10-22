@@ -176,14 +176,19 @@ GitHub's "Cite this repository" button):
 Please also cite the AmsterdamUMCdb dataset itself:
 
 ```bibtex
-@article{Thoral_AmsterdamUMCdb_2021,
-  author = {Thoral, Patrick J. and Peppink, Jan M. and Driessen, Ronald H. and Sijbrands, Eric J. G. and Kompanje, Erwin J. O. and Kaplan, Lewis and Bailey, Heatherlee and Kesecioglu, Jozef and Cecconi, Maurizio and Churpek, Matthew and Clermont, Gilles and van der Schaar, Mihaela and Ercole, Ari and Girbes, Armand R. J. and Elbers, Paul W. G.},
-  title = {Sharing {ICU} Patient Data Responsibly Under the Society of Critical Care Medicine/European Society of Intensive Care Medicine Joint Data Science Collaboration: The {Amsterdam} {University} {Medical} {Centers} Database ({AmsterdamUMCdb}) Example},
+@article{thoralSharingICUPatient2021,
+  title = {Sharing {{ICU Patient Data Responsibly Under}} the {{Society}} of {{Critical Care Medicine}}/{{European Society}} of {{Intensive Care Medicine Joint Data Science Collaboration}}: {{The Amsterdam University Medical Centers Database}} ({{AmsterdamUMCdb}}) {{Example}}*},
+  shorttitle = {Sharing {{ICU Patient Data Responsibly Under}} the {{Society}} of {{Critical Care Medicine}}/{{European Society}} of {{Intensive Care Medicine Joint Data Science Collaboration}}},
+  author = {Thoral, Patrick J. and Peppink, Jan M. and Driessen, Ronald H. and Sijbrands, Eric J. G. and Kompanje, Erwin J. O. and Kaplan, Lewis and Bailey, Heatherlee and Kesecioglu, Jozef and Cecconi, Maurizio and Churpek, Matthew and Clermont, Gilles and {van der Schaar}, Mihaela and Ercole, Ari and Girbes, Armand R. J. and Elbers, Paul W. G.},
+  year = 2021,
+  month = jun,
   journal = {Critical Care Medicine},
   volume = {49},
   number = {6},
-  pages = {e563--e577},
-  year = {2021},
-  doi = {10.1097/CCM.0000000000004916}
+  pages = {e563-e577},
+  issn = {0090-3493},
+  doi = {10.1097/CCM.0000000000004916},
+  urldate = {2022-04-29},
+  langid = {english},
 }
 ```
