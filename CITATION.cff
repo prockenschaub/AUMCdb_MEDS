@@ -3,12 +3,17 @@ message: "If you use this software, please cite it as below."
 title: The AUMCdb MEDS ETL
 authors:
 - affiliation: Hasso Plattner Institute
-  family-names: Robin van de Water
+  given-names: Robin
+  family-names: van de Water
 - affiliation: Medical University Innsbruck
-  family-names: Patrick Rockenschaub
+  given-names: Patrick
+  family-names: Rockenschaub
 - affiliation: Snowflake
-  family-names: Pawel Renc
+  given-names: Pawel
+  family-names: Renc
+- given-names: Matthew
+  family-names: McDermott
 date-released: '2025-11-05'
-doi: 10.5281/zenodo.17531825
+doi: 10.5281/zenodo.17531824
 repository-code: "https://github.com/prockenschaub/AUMCdb_MEDS"
 license: "MIT"

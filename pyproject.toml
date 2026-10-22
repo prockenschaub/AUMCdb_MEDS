@@ -7,8 +7,11 @@ name = "AUMCdb-MEDS"
 dynamic = ["version"]
 authors = [
   { name="Patrick Rockenschaub", email="rockenschaub.patrick@gmail.com" },
+  { name="Robin van de Water", email="r.p.vandewater@gmail.com" },
+  { name="Matthew McDermott", email="mattmcdermott8@gmail.com" },
+  { name="Pawel Renc", email="rencpawe@gmail.com" },
 ]
-description = "A template ETL pipeline to extract AUMCdb data into the MEDS format."
+description = "A MEDS-Extract ETL pipeline that converts AmsterdamUMCdb into the MEDS format."
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = [
@@ -16,20 +19,21 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = [
-  "meds-transforms<0.4", "requests", "beautifulsoup4", "hydra-core"
-]
+# Pure-config ETL: the only runtime dependency is MEDS-Extract itself, which supplies both
+# CLIs (`meds-extract-download`, `meds-extract-run`) and every extraction stage.
+dependencies = ["MEDS-extract[download]>=0.7.1,<0.8"]
 
 [tool.setuptools_scm]
 
 [project.optional-dependencies]
 dev = ["pre-commit<4"]
-tests = ["pytest", "pytest-cov"]
 local_parallelism = ["hydra-joblib-launcher"]
 slurm_parallelism = ["hydra-submitit-launcher"]
 
-[project.scripts]
-MEDS_extract-AUMCdb = "AUMCdb_MEDS.__main__:main"
+# Registers the bundled MESSY file as a MEDS-Extract dataset pipeline, so the whole
+# ETL is runnable as `meds-extract-run spec=AUMCdb output_dir=...`.
+[project.entry-points."MEDS_extract.pipelines"]
+AUMCdb = "AUMCdb_MEDS.configs:messy.yaml"
 
 [project.urls]
 Homepage = "https://github.com/prockenschaub/AUMCdb_MEDS"
