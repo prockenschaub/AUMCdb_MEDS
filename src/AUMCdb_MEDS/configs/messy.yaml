@@ -9,9 +9,9 @@
 # ---------------------------------------------------------------------------
 # HOW THE PSEUDO-TIMESTAMPS WORK
 #
-# AUMCdb stores only OFFSETS (in milliseconds) from a per-admission origin; absolute times are
-# not meaningful, only relative differences. The old pre-MEDS step reconstructed an origin per
-# admission and added the offsets. That is now `_table.cols`:
+# AUMCdb stores only OFFSETS (in milliseconds) relative to the patient's first ICU admission;
+# absolute times are not meaningful, only relative differences. The old pre-MEDS step anchored
+# them to the start of the year group and added the offsets. That is now `_table.cols`:
 #
 #   _origin      = January 1st of the admission's year group (2003 or 2010)
 #   <x>time      = _origin + <x> milliseconds

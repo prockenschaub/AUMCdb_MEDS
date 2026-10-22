@@ -7,6 +7,9 @@ name = "AUMCdb-MEDS"
 dynamic = ["version"]
 authors = [
   { name="Patrick Rockenschaub", email="rockenschaub.patrick@gmail.com" },
+  { name="Robin van de Water", email="r.p.vandewater@gmail.com" },
+  { name="Matthew McDermott", email="mattmcdermott8@gmail.com" },
+  { name="Pawel Renc", email="rencpawe@gmail.com" },
 ]
 description = "A MEDS-Extract ETL pipeline that converts AmsterdamUMCdb into the MEDS format."
 readme = "README.md"

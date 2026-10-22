@@ -90,8 +90,8 @@ The number of subjects per shard is set by `n_subjects_per_shard` under `etl:` i
 
 ### Pseudo-timestamps
 
-AUMCdb stores only *offsets* (in milliseconds) from a per-admission origin; absolute times are not
-meaningful, only relative differences. Reconstructing real timestamps used to be a Python
+AUMCdb stores only *offsets* (in milliseconds) relative to the patient's first ICU admission;
+absolute times are not meaningful, only relative differences. Reconstructing real timestamps used to be a Python
 pre-MEDS step; it is now `_table.cols`:
 
 ```yaml
@@ -101,6 +101,9 @@ admittedattime: $_origin + ($admittedat / 1000)::seconds
 
 Tables other than `admissions` key on `admissionid`, so each joins `admissions` for the subject id
 and year group before rebuilding `_origin`.
+
+The anchor uses each admission's own `admissionyeargroup`. In v1.0.2 no patient's later admissions
+fall in a different year group from their first, so this matches anchoring on the first admission.
 
 ### Source encoding
 
@@ -164,7 +167,7 @@ GitHub's "Cite this repository" button):
 
 ```bibtex
 @software{van_de_Water_AUMCdb_MEDS_ETL_2025,
-  author = {van de Water, Robin and Rockenschaub, Patrick and Renc, Pawel},
+  author = {van de Water, Robin and Rockenschaub, Patrick and Renc, Pawel and McDermott, Matthew},
   doi = {10.5281/zenodo.17531824},
   license = {MIT},
   title = {{The AUMCdb MEDS ETL}},
