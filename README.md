@@ -192,3 +192,8 @@ Please also cite the AmsterdamUMCdb dataset itself:
   langid = {english},
 }
 ```
+
+## License
+
+This ETL is released under the [MIT License](LICENSE). AmsterdamUMCdb itself is covered by its own
+data use agreement.
