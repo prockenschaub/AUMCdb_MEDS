@@ -1,4 +1,4 @@
-# MESSY config for the AmsterdamUMCdb MEDS ETL (MEDS-Extract >= 0.7).
+# MESSY config for the AmsterdamUMCdb MEDS ETL (MEDS-Extract >= 0.7.1).
 #
 # This is the WHOLE ETL. There is no Python in this package -- `sources:` fetches and unpacks the
 # raw data, `etl:` carries the run options, and the event tables below do the conversion,
@@ -48,6 +48,8 @@ sources:
 etl:
   dataset_name: AUMCdb
   n_subjects_per_shard: 1000
+  # 6 of 7 source CSVs are Windows-1252 (only admissions.csv is plain ASCII).
+  encoding: cp1252
 
 _defaults:
   subject_id: $patientid

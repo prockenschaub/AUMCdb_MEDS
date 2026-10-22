@@ -18,7 +18,7 @@ classifiers = [
 ]
 # Pure-config ETL: the only runtime dependency is MEDS-Extract itself, which supplies both
 # CLIs (`meds-extract-download`, `meds-extract-run`) and every extraction stage.
-dependencies = ["MEDS-extract[download]>=0.7.0,<0.8"]
+dependencies = ["MEDS-extract[download]>=0.7.1,<0.8"]
 
 [tool.setuptools_scm]
 

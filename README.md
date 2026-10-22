@@ -28,7 +28,7 @@ eight-stage MEDS-Extract pipeline. To stage the raw data separately:
 
 ```bash
 meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR
-meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR download_key=null input_dir=$RAW_DATA_DIR
+meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR do_download=false input_dir=$RAW_DATA_DIR
 ```
 
 ## Configuration
@@ -40,7 +40,8 @@ meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR download_key=null input_dir=$R
 - **`sources:`** — where the raw data lives. The DANS DataVerse API key is passed as an
   `X-Dataverse-key` header read from `${oc.env:AUMCDB_API_KEY}`, so the credential never lands in
   the config, the logs, or the output tree. Both entries are zips, unpacked by the download layer.
-- **`etl:`** — the dataset name and curated stage options.
+- **`etl:`** — the dataset name and curated stage options, including `encoding: cp1252`: six of
+  the seven source CSVs are Windows-1252, not UTF-8.
 - **the event tables** — what to extract, in [dftly](https://github.com/mmcdermott/dftly)
   expressions.
 
