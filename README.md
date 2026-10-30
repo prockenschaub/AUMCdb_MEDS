@@ -11,7 +11,7 @@
 [![MEDS v0.4](https://img.shields.io/badge/MEDS-0.4-blue)](https://medical-event-data-standard.github.io/)
 
 An ETL pipeline that converts the [Amsterdam University Medical Centers Database
-(AmsterdamUMCdb)](https://amsterdammedicaldatascience.nl/amsterdamumcdb/) into the
+(AmsterdamUMCdb)](https://amsterdammedicaldatascience.nl/#access) into the
 [Medical Event Data Standard (MEDS)](https://medical-event-data-standard.github.io/) using
 [MEDS-Extract](https://github.com/mmcdermott/MEDS_extract).
 
