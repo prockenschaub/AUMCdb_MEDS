@@ -26,7 +26,7 @@ dependencies = ["MEDS-extract[download]>=0.7.1,<0.8"]
 [tool.setuptools_scm]
 
 [project.optional-dependencies]
-dev = ["pre-commit<4"]
+dev = ["pre-commit<4", "pytest"]
 local_parallelism = ["hydra-joblib-launcher"]
 slurm_parallelism = ["hydra-submitit-launcher"]
 

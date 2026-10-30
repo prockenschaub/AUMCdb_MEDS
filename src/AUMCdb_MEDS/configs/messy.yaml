@@ -45,6 +45,19 @@ sources:
           unarchive: zip
           cleanup_archive: true
 
+  # The item dictionary AmsterdamUMC publishes for v1.0.2 and earlier (MIT licence): one row per
+  # item (and per list value), with the item's English name where translated, its category and,
+  # for a few hundred items, a LOINC, ATC or SNOMED CT code. The `_metadata` blocks below join it
+  # on the item name to describe the item codes; nothing from it is copied into this repository.
+  # `common` is fetched with every download; for a pre-staged input_dir, fetch only this file with
+  #   meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR key=common
+  common:
+    - type: http
+      urls:
+        - url: https://raw.githubusercontent.com/AmsterdamUMC/AmsterdamUMCdb/5422b94dbaba6c1d9b7c301f059c425ca1fc13ce/amsterdamumcdb/dictionary/legacy/dictionary.csv
+          rel_path: dictionary.csv
+          sha256: c1fa29d5c3efca7adf048efc7a67e649f9f0c3728a574eeeda0004125054ab4b
+
 etl:
   dataset_name: AUMCdb
   n_subjects_per_shard: 1000
@@ -92,30 +105,77 @@ admissions:
   # The old pre-MEDS built a separate `patient` table with `.filter(admissioncount == 1)`. MESSY
   # has no row filter, but a null `code` drops the row, so the conditional below is equivalent:
   # these three events are emitted only for a patient's first admission.
+  #
+  # Code descriptions (`_metadata: _self:`) are evaluated per admission row and name the
+  # `admissions` column each code component comes from; the column meanings follow the
+  # AmsterdamUMCdb table documentation (https://github.com/AmsterdamUMC/AmsterdamUMCdb/wiki/admissions).
+  # The conditional birth/death/gender codes reference `admissioncount`, so they are not literals
+  # and `_self` can describe them.
   dob:
     code: '"MEDS_BIRTH" if $admissioncount == 1'
     time: $dateofbirth
+    _metadata:
+      _self:
+        description: >-
+          "Birth; AmsterdamUMCdb records only an age band at admission (admissions.agegroup), so the
+          date is imputed from the middle of the band at the first admission"
   gender:
     code: 'f"GENDER//{$gender ?? ''UNK''}" if $admissioncount == 1'
     time: null
+    _metadata:
+      _self:
+        description: >-
+          f"Gender: {$gender ?? 'UNK'} (AmsterdamUMCdb admissions.gender: Man is male, Vrouw is female)"
+        # OMOP Gender concepts, as mapped in AmsterdamUMC's own OMOP dictionary
+        # (amsterdamumcdb/dictionary/dictionary.csv, vocabulary 'AUMC Gender').
+        parent_codes: >-
+          "Gender/M" if $gender == "Man" else ("Gender/F" if $gender == "Vrouw")
   dod:
     code: '"MEDS_DEATH" if $admissioncount == 1'
     time: $dateofdeath_t
+    _metadata:
+      _self:
+        description: >-
+          "Death, at the recorded date of death (AmsterdamUMCdb admissions.dateofdeath)"
 
   # --- Admission-level events. -----------------------------------------------
   icu_admission:
     code: >-
       f"ICU_ADMISSION//{$location ?? 'UNK'}//{$urgency ?? 'UNK'}//{$origin ?? 'UNK'}//{$specialty ?? 'UNK'}"
     time: $admittedattime
+    _metadata:
+      _self:
+        description: >-
+          f"ICU admission to {$location ?? 'UNK'} (admissions.location: IC intensive care, MC medium
+          care, or both); urgency {$urgency ?? 'UNK'} (admissions.urgency: 1 unplanned, 0 planned);
+          admitted from {$origin ?? 'UNK'} (admissions.origin); medical specialty {$specialty ?? 'UNK'}
+          (admissions.specialty)"
   icu_discharge:
     code: 'f"ICU_DISCHARGE//{$destination ?? ''UNK''}"'
     time: $dischargedattime
+    _metadata:
+      _self:
+        description: >-
+          f"ICU discharge to {$destination ?? 'UNK'} (admissions.destination: the department the
+          patient went to, or Overleden if the patient died during the ICU admission)"
   weight:
     code: 'f"WEIGHT_AT_ADMISSION//{$weightsource ?? ''UNK''}//{$weightgroup ?? ''UNK''}"'
     time: $admittedattime
+    _metadata:
+      _self:
+        description: >-
+          f"Body weight at ICU admission, band {$weightgroup ?? 'UNK'} kg (admissions.weightgroup);
+          determined as {$weightsource ?? 'UNK'} (admissions.weightsource: gemeten measured, geschat
+          estimated, anamnestisch reported)"
   height:
     code: 'f"HEIGHT_AT_ADMISSION//{$heightsource ?? ''UNK''}//{$heightgroup ?? ''UNK''}"'
     time: $admittedattime
+    _metadata:
+      _self:
+        description: >-
+          f"Body height at ICU admission, band {$heightgroup ?? 'UNK'} cm (admissions.heightgroup);
+          determined as {$heightsource ?? 'UNK'} (admissions.heightsource: gemeten measured, geschat
+          estimated, anamnestisch reported)"
 
 # ---------------------------------------------------------------------------
 # Every other table keys on `admissionid` only, so each joins `admissions` for the subject id and
@@ -125,6 +185,16 @@ admissions:
 # `measuredat == -1899` rows are dropped, as before: the old pre-MEDS filtered them out because
 # they leak information from the future. Here the computed time is null for those rows, and
 # null-time rows are dropped with a logged count.
+#
+# Code descriptions: every event of these tables names an item, so its codes are described from
+# the public AmsterdamUMCdb dictionary (`dictionary.csv`, fetched by the `common` source above),
+# joined on the item name. The key is `item` only (a partial match), so one dictionary entry
+# describes every unit, value or action variant of the item. The description gives the item's
+# English name where the dictionary has one, the Dutch item name, the itemid and the category;
+# items the dictionary maps to LOINC, ATC or SNOMED CT also get that code as parent code (as an
+# OMOP vocabulary_id: the dictionary writes "SNOMED CT" for SNOMED). Each block only takes the
+# dictionary rows of its own table (`if $table == ...`; other rows yield no output and are dropped),
+# so an item name can never describe codes of another table.
 # ---------------------------------------------------------------------------
 
 numericitems:
@@ -138,6 +208,17 @@ numericitems:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$unit ?? ''UNK''}"'
     time: $measuredattime
     numeric_value: $value
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: numeric observation, unit in the code (AmsterdamUMCdb
+          numericitems itemid {$itemid}, category {f'{$category_en} ({$category})' ?? $category})"
+          if $table == "numericitems"
+        # Null for items the dictionary maps to no vocabulary, so those get no parent code.
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "numericitems"
 
 listitems:
   _table:
@@ -149,6 +230,17 @@ listitems:
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}//{$value ?? ''UNK''}"'
     time: $measuredattime
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: categorical observation, lab-result flag and the value
+          chosen from the list in the code (AmsterdamUMCdb listitems itemid {$itemid}, category
+          {f'{$category_en} ({$category})' ?? $category})"
+          if $table == "listitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "listitems"
 
 freetextitems:
   _table:
@@ -161,6 +253,17 @@ freetextitems:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}"'
     time: $measuredattime
     text_value: $value
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: text result, lab-result flag in the code
+          (AmsterdamUMCdb freetextitems itemid {$itemid}, category {f'{$category_en} ({$category})' ??
+          $category})"
+          if $table == "freetextitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "freetextitems"
 
 procedureorderitems:
   _table:
@@ -172,6 +275,17 @@ procedureorderitems:
   event:
     code: 'f"PROCEDURE//{$ordercategoryname ?? ''UNK''}//{$item ?? ''UNK''}"'
     time: $registeredattime
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: procedure or task order, order category in the code
+          (AmsterdamUMCdb procedureorderitems itemid {$itemid}, category {f'{$category_en} ({$category})'
+          ?? $category})"
+          if $table == "procedureorderitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "procedureorderitems"
 
 processitems:
   _table:
@@ -184,9 +298,31 @@ processitems:
   start:
     code: 'f"PROCESS//START//{$item ?? ''UNK''}"'
     time: $starttime
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: start (placement) of a catheter, drain, tube or
+          continuous non-medication process (AmsterdamUMCdb processitems itemid {$itemid}, category
+          {f'{$category_en} ({$category})' ?? $category})"
+          if $table == "processitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "processitems"
   end:
     code: 'f"PROCESS//END//{$item ?? ''UNK''}"'
     time: $stoptime
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: stop (removal) of a catheter, drain, tube or continuous
+          non-medication process (AmsterdamUMCdb processitems itemid {$itemid}, category
+          {f'{$category_en} ({$category})' ?? $category})"
+          if $table == "processitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "processitems"
 
 drugitems:
   _table:
@@ -200,16 +336,61 @@ drugitems:
     code: >-
       f"DRUG//START//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$action ?? 'UNK'}"
     time: $starttime
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: start of a drug, fluid or feeding order; order category
+          and the documented action (new bag or syringe, pause, restart, stop) in the code
+          (AmsterdamUMCdb drugitems itemid {$itemid}, category {f'{$category_en} ({$category})' ??
+          $category})"
+          if $table == "drugitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "drugitems"
   rate:
     code: >-
       f"DRUG//RATE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$rateunit ?? 'UNK'}"
     time: $starttime
     numeric_value: $rate
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: infusion rate of a drug, fluid or feeding order (volume
+          per time, 0 for a bolus); order category and rate unit in the code (AmsterdamUMCdb drugitems
+          itemid {$itemid}, category {f'{$category_en} ({$category})' ?? $category})"
+          if $table == "drugitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "drugitems"
   dose:
     code: >-
       f"DRUG//DOSE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$doseunit ?? 'UNK'}"
     time: $starttime
     numeric_value: $dose
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: prescribed dose of a drug, fluid or feeding order; order
+          category and dose unit in the code (AmsterdamUMCdb drugitems itemid {$itemid}, category
+          {f'{$category_en} ({$category})' ?? $category})"
+          if $table == "drugitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "drugitems"
   end:
     code: 'f"DRUG//END//{$ordercategory ?? ''UNK''}//{$item ?? ''UNK''}"'
     time: $stoptime
+    _metadata:
+      dictionary:
+        item: $item
+        description: >-
+          f"{f'{$item_en} ({$item})' ?? $item}: stop of a drug, fluid or feeding order; order category
+          in the code (AmsterdamUMCdb drugitems itemid {$itemid}, category
+          {f'{$category_en} ({$category})' ?? $category})"
+          if $table == "drugitems"
+        parent_codes: >-
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          if $table == "drugitems"
