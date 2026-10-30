@@ -145,8 +145,9 @@ config for the exact rules.
 
 ### Code metadata
 
-`metadata/codes.parquet` lists every code with a `description`, `parent_codes` where a standard
-vocabulary applies, and the `code_template` it was built from. Releases up to 0.1.0 wrote only the
+`metadata/codes.parquet` lists every code with a `description`, `parent_codes` where
+AmsterdamUMC's item dictionary maps the item to a standard vocabulary, and the `code_template` it
+was built from. Releases up to 0.1.0 wrote only the
 `code` column. Codes are built from Dutch item names and admission categories, which a reader can
 decode with the AmsterdamUMCdb documentation but which cross-dataset mapping and vocabulary
 tooling (OHDSI Athena) cannot resolve, so the config now attaches the documented meaning:
@@ -154,7 +155,7 @@ tooling (OHDSI Athena) cannot resolve, so the config now attaches the documented
 | Code family                                                                                             | Route                                                                                                                                                                         | Source                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `MEASURE//…`, `PROCEDURE//…`, `PROCESS//…`, `DRUG//…`                                                   | `_metadata: dictionary:` blocks, joined on the item name and restricted to the dictionary rows of the event's own table; one entry covers every unit, value or action variant | the item dictionary AmsterdamUMC publishes for v1.0.2 and earlier ([`amsterdamumcdb/dictionary/legacy/dictionary.csv`](https://github.com/AmsterdamUMC/AmsterdamUMCdb/blob/5422b94dbaba6c1d9b7c301f059c425ca1fc13ce/amsterdamumcdb/dictionary/legacy/dictionary.csv), MIT, commit 5422b94), downloaded at ETL time: English item name where translated, Dutch item name, itemid, category; its LOINC, ATC or SNOMED CT code as parent code |
-| `MEDS_BIRTH`, `MEDS_DEATH`, `GENDER//…`, `ICU_ADMISSION//…`, `ICU_DISCHARGE//…`, `WEIGHT_…`, `HEIGHT_…` | `_metadata: _self:` templates, evaluated per admission                                                                                                                        | the code's own components, named after their `admissions` column and explained as in the [AmsterdamUMCdb table documentation](https://github.com/AmsterdamUMC/AmsterdamUMCdb/wiki/admissions); `GENDER//Man` and `GENDER//Vrouw` get `Gender/M` and `Gender/F`, as in AmsterdamUMC's OMOP dictionary                                                                                                                                       |
+| `MEDS_BIRTH`, `MEDS_DEATH`, `GENDER//…`, `ICU_ADMISSION//…`, `ICU_DISCHARGE//…`, `WEIGHT_…`, `HEIGHT_…` | `_metadata: _self:` templates, evaluated per admission                                                                                                                        | the code's own components, named after their `admissions` column and explained as in the [AmsterdamUMCdb table documentation](https://github.com/AmsterdamUMC/AmsterdamUMCdb/wiki/admissions)                                                                                                                                                                                                                                              |
 
 Nothing from the dictionary is copied into this repository. It holds 4,985 items: 472 with an
 English name and 387 mapped to a vocabulary (169 LOINC, 210 ATC, 8 SNOMED CT), so most item codes
@@ -164,6 +165,30 @@ code gets a description.
 The parent codes are AmsterdamUMC's own item-level mappings (made for the Dutch ICU data
 warehouse); the vocabulary's own text is left to vocabulary tooling. MEDS 0.4 makes `description`
 optional, so consumers must still not rely on it for datasets built with older releases.
+
+### Enriching code metadata with suMEDS
+
+Vocabulary tagging that AmsterdamUMCdb does not carry itself lives in
+[suMEDS](https://github.com/rvandewater/SumMEDS) and its versioned ontology data (sumeds-ontologies,
+pinned release), which maintain one copy for all MEDS ETLs. This package ships a rules file for it,
+[`src/AUMCdb_MEDS/sumeds_rules.yaml`](src/AUMCdb_MEDS/sumeds_rules.yaml) (package data, also
+`AUMCdb_MEDS.SUMEDS_RULES`, format `sumeds-rules/0.1`). After the ETL, run:
+
+```bash
+uvx --from "git+https://github.com/rvandewater/SumMEDS" suMEDS-enrich \
+    $MEDS_DIR/metadata/codes.parquet -o codes-enriched.parquet \
+    --rules src/AUMCdb_MEDS/sumeds_rules.yaml
+```
+
+One ontology rule, `aumcdb-gender`, tags `GENDER//Man` and `GENDER//Vrouw` with the OMOP Gender
+concepts `Gender//M` and `Gender//F`, as in AmsterdamUMC's own OMOP dictionary. suMEDS has no
+Gender pack, so the codes are tagged, or validated when your OHDSI Athena download
+(`--athena-csv`) has the Gender vocabulary. The ETL alone does not emit these parents; the LOINC,
+ATC and SNOMED CT parents of item codes come from AmsterdamUMC's dictionary and stay in the ETL.
+The file has no hierarchy rules: no code is a coarser version of another code of the data (a list
+item, `MEASURE//{item}//{islabresult}//{value}`, could only nest under a free-text item of the same
+name, and none shares one). `tests/test_sumeds_rules.py` checks that the file is well formed and
+that the rule matches exactly the gender codes the config builds.
 
 ## Testing with synthetic data
 
