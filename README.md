@@ -59,7 +59,14 @@ meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR do_download=false input_dir=$R
 
 `$RAW_DATA_DIR` should contain the seven AUMCdb CSVs (`admissions.csv`, `numericitems.csv`,
 `listitems.csv`, `freetextitems.csv`, `procedureorderitems.csv`, `processitems.csv` and
-`drugitems.csv`) as distributed, without converting their encoding.
+`drugitems.csv`) as distributed, without converting their encoding, plus the public item
+dictionary `dictionary.csv` that the code descriptions are built from (see
+[Code metadata](#code-metadata)). The download fetches it with the data; to add it to a copy you
+already have (no API key needed):
+
+```bash
+meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR key=common
+```
 
 ### Resources and parallelism
 
@@ -83,6 +90,7 @@ The number of subjects per shard is set by `n_subjects_per_shard` under `etl:` i
 - **`sources:`** — where the raw data lives. The DANS DataVerse API key is passed as an
     `X-Dataverse-key` header read from `${oc.env:AUMCDB_API_KEY}`, so the credential never lands in
     the config, the logs, or the output tree. Both entries are zips, unpacked by the download layer.
+    The `common` entry is the public item dictionary, pinned to a commit and checked by SHA-256.
 - **`etl:`** — the dataset name and curated stage options, including `encoding: cp1252`: six of
     the seven source CSVs are Windows-1252, not UTF-8.
 - **the event tables** — what to extract, in [dftly](https://github.com/mmcdermott/dftly)
@@ -135,6 +143,28 @@ Birth, death and gender are only emitted from a patient's first admission, and g
 from the middle of the band. Death is placed at its recorded offset. See the comments in the
 config for the exact rules.
 
+### Code metadata
+
+`metadata/codes.parquet` lists every code with a `description`, `parent_codes` where a standard
+vocabulary applies, and the `code_template` it was built from. Releases up to 0.1.0 wrote only the
+`code` column. Codes are built from Dutch item names and admission categories, which a reader can
+decode with the AmsterdamUMCdb documentation but which cross-dataset mapping and vocabulary
+tooling (OHDSI Athena) cannot resolve, so the config now attaches the documented meaning:
+
+| Code family                                                                                             | Route                                                                                                                                                                         | Source                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MEASURE//…`, `PROCEDURE//…`, `PROCESS//…`, `DRUG//…`                                                   | `_metadata: dictionary:` blocks, joined on the item name and restricted to the dictionary rows of the event's own table; one entry covers every unit, value or action variant | the item dictionary AmsterdamUMC publishes for v1.0.2 and earlier ([`amsterdamumcdb/dictionary/legacy/dictionary.csv`](https://github.com/AmsterdamUMC/AmsterdamUMCdb/blob/5422b94dbaba6c1d9b7c301f059c425ca1fc13ce/amsterdamumcdb/dictionary/legacy/dictionary.csv), MIT, commit 5422b94), downloaded at ETL time: English item name where translated, Dutch item name, itemid, category; its LOINC, ATC or SNOMED CT code as parent code |
+| `MEDS_BIRTH`, `MEDS_DEATH`, `GENDER//…`, `ICU_ADMISSION//…`, `ICU_DISCHARGE//…`, `WEIGHT_…`, `HEIGHT_…` | `_metadata: _self:` templates, evaluated per admission                                                                                                                        | the code's own components, named after their `admissions` column and explained as in the [AmsterdamUMCdb table documentation](https://github.com/AmsterdamUMC/AmsterdamUMCdb/wiki/admissions); `GENDER//Man` and `GENDER//Vrouw` get `Gender/M` and `Gender/F`, as in AmsterdamUMC's OMOP dictionary                                                                                                                                       |
+
+Nothing from the dictionary is copied into this repository. It holds 4,985 items: 472 with an
+English name and 387 mapped to a vocabulary (169 LOINC, 210 ATC, 8 SNOMED CT), so most item codes
+are described by their Dutch name, itemid and category. On v1.0.2, every item name in each of the
+six item tables has a dictionary row for that table (checked against the raw tables), so every
+code gets a description.
+The parent codes are AmsterdamUMC's own item-level mappings (made for the Dutch ICU data
+warehouse); the vocabulary's own text is left to vocabulary tooling. MEDS 0.4 makes `description`
+optional, so consumers must still not rely on it for datasets built with older releases.
+
 ## Testing with synthetic data
 
 You can run the whole ETL without access to AmsterdamUMCdb.
@@ -149,7 +179,10 @@ meds-extract-run spec=AUMCdb output_dir=meds_synthetic/ do_download=false input_
 ```
 
 Every generated value is visibly fake, so the output is only useful for checking that the
-pipeline runs end to end and that every event still produces rows.
+pipeline runs end to end and that every event still produces rows. MESSY-synth's placeholder
+dictionary matches no table, so its item codes stay undescribed; `pytest tests` (also run in CI)
+rebuilds with a small fixture dictionary and checks that every event's codes are described and that
+`codes.parquet` validates against the MEDS code-metadata schema.
 
 ## Contributing
 

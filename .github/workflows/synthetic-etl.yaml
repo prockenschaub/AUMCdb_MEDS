@@ -29,9 +29,13 @@ jobs:
 
       - name: Install packages
         run: |
-          pip install . MESSY-synth
+          pip install . MESSY-synth pytest
 
       - name: Generate and extract synthetic data
         run: |
           MESSY-synth AUMCdb -o raw_synthetic/ --explain
           meds-extract-run spec=AUMCdb output_dir=./aumcdb_meds_synth input_dir=raw_synthetic do_download=false
+
+      - name: Check code metadata
+        run: |
+          pytest -q tests
