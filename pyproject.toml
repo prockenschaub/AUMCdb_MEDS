@@ -25,6 +25,9 @@ dependencies = ["MEDS-extract[download]>=0.7.1,<0.8"]
 
 [tool.setuptools_scm]
 
+[tool.setuptools.package-data]
+AUMCdb_MEDS = ["configs/*.yaml", "sumeds_rules.yaml"]
+
 [project.optional-dependencies]
 dev = ["pre-commit<4", "pytest"]
 local_parallelism = ["hydra-joblib-launcher"]

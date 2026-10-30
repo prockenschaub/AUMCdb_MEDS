@@ -1,0 +1,29 @@
+# suMEDS rules for AmsterdamUMCdb MEDS codes (format `sumeds-rules/0.1`, see
+# https://github.com/rvandewater/SumMEDS/blob/main/docs/enrichment.md).
+#
+# The ETL keeps what AmsterdamUMCdb owns: descriptions, and the LOINC, ATC and SNOMED CT parents of
+# the item codes taken from AmsterdamUMC's own item dictionary. External-ontology tagging that the
+# dataset does not carry is left to suMEDS. Run it with this file over `metadata/codes.parquet`
+# (README section "Enriching code metadata with suMEDS"):
+#
+#   suMEDS-enrich $MEDS_DIR/metadata/codes.parquet -o codes-enriched.parquet \
+#     --rules src/AUMCdb_MEDS/sumeds_rules.yaml
+#
+# No hierarchy rules: no AmsterdamUMCdb code is a coarser version of another code of the data. The
+# only layouts that could nest, a list item (`MEASURE//{item}//{islabresult}//{value}`) under a
+# free-text item of the same name (`MEASURE//{item}//{islabresult}`), never share an item name.
+
+schema: sumeds-rules/0.1
+
+ontology:
+  # `GENDER//{admissions.gender}`: `Man` is male, `Vrouw` female, mapped to the OMOP Gender concepts
+  # `M` and `F` as in AmsterdamUMC's own OMOP dictionary (amsterdamumcdb/dictionary/dictionary.csv,
+  # vocabulary 'AUMC Gender'). suMEDS has no Gender pack: `validate: none` tags the code, or
+  # validates it when your Athena download has the Gender vocabulary.
+  - id: aumcdb-gender
+    pattern: "^GENDER//(?P<code>Man|Vrouw)$"
+    vocabulary: Gender
+    normalize:
+      - { pattern: "^Man$", replace: "M" }
+      - { pattern: "^Vrouw$", replace: "F" }
+    validate: none

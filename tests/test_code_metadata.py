@@ -13,7 +13,6 @@ import polars as pl
 import pyarrow.parquet as pq
 import pytest
 import yaml
-from dftly import Parser
 from meds import CodeMetadataSchema
 
 from AUMCdb_MEDS import MESSY_CFG, PIPELINE_NAME
@@ -28,7 +27,9 @@ DICTIONARY_COLUMNS = {
     "islabresult", "valueid", "value", "unitid", "unit", "ucum_code", "low_normal_value",
     "high_normal_value", "expected_min_value", "expected_max_value", "table", "count", "count_validated",
 }  # fmt: skip
-OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED|Gender)/\S+$")
+# Parents the ETL emits: only the dictionary's own item-level codes. Other vocabulary tagging
+# (e.g. OMOP Gender) is left to suMEDS (`sumeds_rules.yaml`, tests/test_sumeds_rules.py).
+OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)/\S+$")
 # The CLIs live next to the interpreter; the pipeline also spawns its stage CLI through PATH.
 ENV = os.environ | {
     "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}"
@@ -86,17 +87,15 @@ def test_dictionary_blocks_are_scoped_to_their_table():
     assert n_blocks == 10
 
 
-def test_gender_parent_codes_are_omop_gender_concepts():
-    expr = Parser()(
-        CFG["admissions"]["gender"]["_metadata"]["_self"]["parent_codes"]
-    ).polars_expr
-    genders = pl.DataFrame({"gender": ["Man", "Vrouw", None, "unexpected"]})
-    assert genders.select(expr.alias("parent"))["parent"].to_list() == [
-        "Gender/M",
-        "Gender/F",
-        None,
-        None,
-    ]
+def test_only_dictionary_blocks_add_parent_codes():
+    """The ETL's parents come from AmsterdamUMC's dictionary; suMEDS adds the Gender tags."""
+    with_parents = {
+        f"{table}/{name}"
+        for table, name, event in _events()
+        for prefix, block in event.get("_metadata", {}).items()
+        if "parent_codes" in block and prefix != DICTIONARY_PREFIX
+    }
+    assert not with_parents, with_parents
 
 
 def _write_fixture_dictionary(raw_dir: Path) -> None:

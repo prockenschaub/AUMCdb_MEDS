@@ -20,5 +20,14 @@ except PackageNotFoundError:  # pragma: no cover
 PIPELINE_NAME = "AUMCdb"
 
 MESSY_CFG = files(__package_name__).joinpath("configs/messy.yaml")
+# Rules for suMEDS (https://github.com/rvandewater/SumMEDS), which adds the vocabulary parents
+# this ETL leaves to it; see the README section "Enriching code metadata with suMEDS".
+SUMEDS_RULES = files(__package_name__).joinpath("sumeds_rules.yaml")
 
-__all__ = ["MESSY_CFG", "PIPELINE_NAME", "__package_name__", "__version__"]
+__all__ = [
+    "MESSY_CFG",
+    "PIPELINE_NAME",
+    "SUMEDS_RULES",
+    "__package_name__",
+    "__version__",
+]
