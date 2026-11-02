@@ -126,10 +126,6 @@ admissions:
       _self:
         description: >-
           f"Gender: {$gender ?? 'UNK'} (AmsterdamUMCdb admissions.gender: Man is male, Vrouw is female)"
-        # OMOP Gender concepts, as mapped in AmsterdamUMC's own OMOP dictionary
-        # (amsterdamumcdb/dictionary/dictionary.csv, vocabulary 'AUMC Gender').
-        parent_codes: >-
-          "Gender/M" if $gender == "Man" else ("Gender/F" if $gender == "Vrouw")
   dod:
     code: '"MEDS_DEATH" if $admissioncount == 1'
     time: $dateofdeath_t
