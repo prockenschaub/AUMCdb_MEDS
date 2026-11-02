@@ -175,7 +175,7 @@ pinned release), which maintain one copy for all MEDS ETLs. This package ships a
 `AUMCdb_MEDS.SUMEDS_RULES`, format `sumeds-rules/0.1`). After the ETL, run:
 
 ```bash
-uvx --from "git+https://github.com/rvandewater/SumMEDS" suMEDS-enrich \
+uvx --from "sumeds>=0.4" suMEDS-enrich \
     $MEDS_DIR/metadata/codes.parquet -o codes-enriched.parquet \
     --rules src/AUMCdb_MEDS/sumeds_rules.yaml
 ```
@@ -187,7 +187,7 @@ Gender pack, so the codes are tagged, or validated when your OHDSI Athena downlo
 ATC and SNOMED CT parents of item codes come from AmsterdamUMC's dictionary and stay in the ETL.
 The file has no hierarchy rules: no code is a coarser version of another code of the data (a list
 item, `MEASURE//{item}//{islabresult}//{value}`, could only nest under a free-text item of the same
-name, and none shares one). `tests/test_sumeds_rules.py` checks that the file is well formed and
+name, and none shares one). `tests/test_sumeds_rules.py` loads the file with suMEDS and checks
 that the rule matches exactly the gender codes the config builds.
 
 ## Testing with synthetic data

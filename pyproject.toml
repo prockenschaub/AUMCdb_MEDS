@@ -29,7 +29,8 @@ dependencies = ["MEDS-extract[download]>=0.7.1,<0.8"]
 AUMCdb_MEDS = ["configs/*.yaml", "sumeds_rules.yaml"]
 
 [project.optional-dependencies]
-dev = ["pre-commit<4", "pytest"]
+# tests/test_sumeds_rules.py loads the packaged rules with suMEDS itself.
+dev = ["pre-commit<4", "pytest", "sumeds>=0.4"]
 local_parallelism = ["hydra-joblib-launcher"]
 slurm_parallelism = ["hydra-submitit-launcher"]
 
