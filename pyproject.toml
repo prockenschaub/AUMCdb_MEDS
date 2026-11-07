@@ -21,13 +21,18 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-# Pure-config ETL: the only runtime dependency is MEDS-Extract itself, which supplies both
-# CLIs (`meds-extract-download`, `meds-extract-run`) and every extraction stage. It is capped below
-# the next minor because MEDS-Extract 0.x minors are breaking (MESSY syntax, runner CLI), so raise it
-# deliberately when migrating. 0.8 is the floor because it renamed the MESSY `_table.join` key to
-# `_table.joins`, which the config uses (0.7 rejects the new key and 0.8 the old one), and decodes
-# `_metadata` sources with `etl.encoding` too.
-dependencies = ["MEDS-extract[download]>=0.8.0,<0.9"]
+# Pure-config ETL: MEDS-Extract supplies both CLIs (`meds-extract-download`, `meds-extract-run`)
+# and every extraction stage. It is capped below the next minor because MEDS-Extract 0.x minors are
+# breaking (MESSY syntax, runner CLI), so raise it deliberately when migrating. 0.8 is the floor
+# because it renamed the MESSY `_table.join` key to `_table.joins`, which the config uses (0.7
+# rejects the new key and 0.8 the old one), and decodes `_metadata` sources with `etl.encoding` too.
+# suMEDS provides `suMEDS-extract`, which runs this ETL and then enriches its code metadata with the
+# rules registered below. 0.6 is the first release that writes `parent_names` as a code-to-name map;
+# it is capped below the next minor for the same reason (its rules format and CLI are still 0.x).
+dependencies = [
+  "MEDS-extract[download]>=0.8.0,<0.9",
+  "sumeds>=0.6,<0.7",
+]
 
 [tool.setuptools_scm]
 
@@ -35,8 +40,7 @@ dependencies = ["MEDS-extract[download]>=0.8.0,<0.9"]
 AUMCdb_MEDS = ["configs/*.yaml", "sumeds_rules.yaml"]
 
 [project.optional-dependencies]
-# tests/test_sumeds_rules.py loads the packaged rules with suMEDS itself.
-dev = ["pre-commit<4", "pytest", "sumeds>=0.4"]
+dev = ["pre-commit<4", "pytest"]
 local_parallelism = ["hydra-joblib-launcher"]
 slurm_parallelism = ["hydra-submitit-launcher"]
 
@@ -44,6 +48,11 @@ slurm_parallelism = ["hydra-submitit-launcher"]
 # ETL is runnable as `meds-extract-run spec=AUMCdb output_dir=...`.
 [project.entry-points."MEDS_extract.pipelines"]
 AUMCdb = "AUMCdb_MEDS.configs:messy.yaml"
+
+# Registers the suMEDS rules under the same name, so `suMEDS-extract spec=AUMCdb` and
+# `--rules AUMCdb` find them.
+[project.entry-points."sumeds.rules"]
+AUMCdb = "AUMCdb_MEDS:sumeds_rules.yaml"
 
 [project.urls]
 Homepage = "https://github.com/prockenschaub/AUMCdb_MEDS"

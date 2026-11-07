@@ -6,6 +6,11 @@
 #
 #   meds-extract-run spec=AUMCdb output_dir=$OUTPUT_DIR
 #
+# or, to also enrich the code metadata with the suMEDS rules this package registers
+# (`sumeds_rules.yaml`):
+#
+#   suMEDS-extract spec=AUMCdb output_dir=$OUTPUT_DIR
+#
 # ---------------------------------------------------------------------------
 # HOW THE PSEUDO-TIMESTAMPS WORK
 #

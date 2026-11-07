@@ -4,6 +4,11 @@ This package contains no ETL code. The entire pipeline is `configs/messy.yaml`, 
 the `MEDS_extract.pipelines` entry-point group, so it runs as:
 
     meds-extract-run spec=AUMCdb output_dir=$OUTPUT_DIR
+
+`sumeds_rules.yaml` is registered under the same name in suMEDS's `sumeds.rules` group, so the ETL
+followed by suMEDS enrichment of its code metadata runs as:
+
+    suMEDS-extract spec=AUMCdb output_dir=$OUTPUT_DIR
 """
 
 from importlib.metadata import PackageNotFoundError, version
@@ -21,7 +26,8 @@ PIPELINE_NAME = "AUMCdb"
 
 MESSY_CFG = files(__package_name__).joinpath("configs/messy.yaml")
 # Rules for suMEDS (https://github.com/rvandewater/SumMEDS), which adds the vocabulary parents
-# this ETL leaves to it; see the README section "Enriching code metadata with suMEDS".
+# this ETL leaves to it, registered as `PIPELINE_NAME` in the `sumeds.rules` entry-point group; see
+# the README section "Enriching code metadata with suMEDS".
 SUMEDS_RULES = files(__package_name__).joinpath("sumeds_rules.yaml")
 
 __all__ = [

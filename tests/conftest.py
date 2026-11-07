@@ -33,7 +33,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-# The CLIs live next to the interpreter; meds-extract-run also spawns its stage CLIs through PATH.
+# The CLIs live next to the interpreter; meds-extract-run also spawns its stage CLIs, and
+# suMEDS-extract finds meds-extract-run, through PATH.
 ENV = os.environ | {
     "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}"
 }
@@ -133,6 +134,8 @@ DICTIONARY_COLUMNS = [
 ]  # fmt: skip
 
 # One row per item (and per list value for list items), with these columns; the others are empty.
+# The LOINC codes are in the tiny pack of test_run_with_enrichment.py; suMEDS has no ATC or SNOMED
+# CT pack.
 DICTIONARY_ROW_COLUMNS = (
     "table",
     "itemid",
