@@ -29,7 +29,7 @@ This ETL targets AmsterdamUMCdb **v1.0.2**.
 ## Setup
 
 Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.8 and
-[suMEDS](https://github.com/rvandewater/SumMEDS) 0.6, which provide the commands below.
+[suMEDS](https://github.com/rvandewater/SumMEDS) 0.6.1, which provide the commands below.
 
 ```bash
 pip install AUMCdb_MEDS
@@ -211,12 +211,21 @@ suMEDS-extract spec=AUMCdb output_dir=$MEDS_DIR -- --athena-csv /path/to/athena
 suMEDS-extract spec=AUMCdb output_dir=$MEDS_DIR -- --offline
 ```
 
-Running it again on an existing output skips the pipeline stages that are already done and
-enriches again. To enrich the `codes.parquet` of an existing build instead:
+Enrichment is on by default, and a failed enrichment (for example, on a server without internet
+access) does not fail the ETL: `metadata/codes.parquet` is left as the ETL wrote it, a warning gives
+the command to enrich it later, and the exit code is still 0. Whether a build was enriched is recorded
+in `metadata/dataset.json`, under `sumeds_enrichment.enriched`. To enrich a build afterwards, with
+the same rules and options as `suMEDS-extract`:
 
 ```bash
-suMEDS-enrich "$MEDS_DIR/metadata/codes.parquet" -o "$MEDS_DIR/metadata/codes.parquet" --rules AUMCdb
+suMEDS-enrich $MEDS_DIR
+# Without internet access, from a copy of the sumeds-ontologies packs directory:
+suMEDS-enrich $MEDS_DIR --ontology-source /path/to/sumeds-ontologies/ontologies --offline
 ```
+
+To make a failed enrichment an error instead, add `-- --strict`; to skip enrichment, run
+`meds-extract-run spec=AUMCdb ...` instead. Running `suMEDS-extract` again on an existing output
+skips the pipeline stages that are already done and enriches again.
 
 For AmsterdamUMCdb, enrichment adds:
 
@@ -252,7 +261,8 @@ dictionary in the published format ([`tests/conftest.py`](tests/conftest.py)), r
 non-ASCII names survive both encodings, and that `codes.parquet` validates against the MEDS
 code-metadata schema. It then runs `suMEDS-extract spec=AUMCdb` over the same data against a tiny
 synthetic LOINC pack, offline, and checks that the enrichment adds the gender and LOINC information
-without changing anything the ETL wrote. CI does this on every pull request (see
+without changing anything the ETL wrote, that `metadata/dataset.json` records it, and that a failed
+enrichment keeps the plain output and can be retried. CI does this on every pull request (see
 [`.github/workflows/synthetic-etl.yaml`](.github/workflows/synthetic-etl.yaml)):
 
 ```bash

@@ -27,11 +27,13 @@ classifiers = [
 # because it renamed the MESSY `_table.join` key to `_table.joins`, which the config uses (0.7
 # rejects the new key and 0.8 the old one), and decodes `_metadata` sources with `etl.encoding` too.
 # suMEDS provides `suMEDS-extract`, which runs this ETL and then enriches its code metadata with the
-# rules registered below. 0.6 is the first release that writes `parent_names` as a code-to-name map;
-# it is capped below the next minor for the same reason (its rules format and CLI are still 0.x).
+# rules registered below. 0.6 is the first release that writes `parent_names` as a code-to-name map.
+# 0.6.1 makes a failed enrichment a warning that keeps the ETL output (e.g. without internet), and
+# records the enrichment in `metadata/dataset.json`. It is capped below the next minor for the same
+# reason (its rules format and CLI are still 0.x).
 dependencies = [
   "MEDS-extract[download]>=0.8.0,<0.9",
-  "sumeds>=0.6,<0.7",
+  "sumeds>=0.6.1,<0.7",
 ]
 
 [tool.setuptools_scm]

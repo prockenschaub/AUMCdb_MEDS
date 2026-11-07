@@ -5,19 +5,24 @@ as its MEDS-Extract spec, so `suMEDS-extract` finds them from `spec=AUMCdb` alon
 source is a tiny pack repository in suMEDS's `sumeds-ontologies/0.1` layout, built here with
 made-up titles for the LOINC codes of the synthetic dictionary of ``conftest.py``, so the test reads
 nothing over the network and does not depend on the published packs.
+
+A failed enrichment does not fail the ETL: with an empty pack source, `suMEDS-extract` keeps the
+plain `codes.parquet`, records the failure in `metadata/dataset.json`, and `suMEDS-enrich OUTPUT`
+enriches it later.
 """
 
 import csv
 import hashlib
 import io
 import json
+import shutil
 from pathlib import Path
 
 import polars as pl
 import pyarrow.parquet as pq
 import pytest
 from conftest import run_command
-from meds import CodeMetadataSchema
+from meds import CodeMetadataSchema, DatasetMetadataSchema
 
 # vocabulary -> (release, codes). LOINC terms have no parents in the pack. LOINC 2951-2, the parent
 # reference of MEASURE//Synthetisch natrium//mmol/l, is deliberately missing, so that code must
@@ -98,9 +103,7 @@ def ontology_source(tmp_path_factory) -> Path:
     return root
 
 
-@pytest.fixture(scope="session")
-def enriched_output(tmp_path_factory, raw_dir: Path, ontology_source: Path) -> Path:
-    output_dir = tmp_path_factory.mktemp("aumcdb_enriched") / "MEDS_cohort"
+def run_with_enrichment(output_dir: Path, raw_dir: Path, ontology_source: Path) -> Path:
     run_command(
         [
             "suMEDS-extract",
@@ -115,6 +118,26 @@ def enriched_output(tmp_path_factory, raw_dir: Path, ontology_source: Path) -> P
         ]
     )
     return output_dir
+
+
+def enrichment_record(output_dir: Path) -> dict:
+    """The `sumeds_enrichment` record of the output's `dataset.json`, which must stay valid MEDS."""
+    metadata = json.loads((output_dir / "metadata" / "dataset.json").read_text())
+    DatasetMetadataSchema.validate(metadata)
+    return metadata["sumeds_enrichment"]
+
+
+@pytest.fixture(scope="session")
+def enriched_output(tmp_path_factory, raw_dir: Path, ontology_source: Path) -> Path:
+    output_dir = tmp_path_factory.mktemp("aumcdb_enriched") / "MEDS_cohort"
+    return run_with_enrichment(output_dir, raw_dir, ontology_source)
+
+
+@pytest.fixture(scope="session")
+def soft_failed_output(tmp_path_factory, raw_dir: Path) -> Path:
+    """`suMEDS-extract` with an empty pack source, as on a site that cannot reach the packs."""
+    output_dir = tmp_path_factory.mktemp("aumcdb_soft_fail") / "MEDS_cohort"
+    return run_with_enrichment(output_dir, raw_dir, tmp_path_factory.mktemp("no_packs"))
 
 
 @pytest.fixture(scope="session")
@@ -202,3 +225,45 @@ def test_loinc_parent_references_are_identified_and_named(enriched_codes: pl.Dat
         assert rows[code]["parent_codes"] == [parent], code
         assert not _names(rows[code]["parent_names"]), code
         assert rows[code]["vocabulary_id"] is None, code
+
+
+def test_dataset_json_records_the_enrichment(
+    enriched_output: Path, enriched_codes: pl.DataFrame
+):
+    record = enrichment_record(enriched_output)
+    assert record["enriched"] is True
+    assert record["rules"] == "AUMCdb"
+    assert record["ontology_source"] == "local"
+    coverage = record["coverage"]
+    assert coverage["codes"] == enriched_codes.height
+    assert coverage["with_parent_codes"][1] > coverage["with_parent_codes"][0]
+
+
+def test_failed_enrichment_keeps_the_plain_etl_output(
+    soft_failed_output: Path, meds_output: Path
+):
+    codes = Path("metadata", "codes.parquet")
+    assert (soft_failed_output / codes).read_bytes() == (
+        meds_output / codes
+    ).read_bytes()
+    record = enrichment_record(soft_failed_output)
+    assert record["enriched"] is False
+    assert record["rules"] == "AUMCdb"
+    # The pack directory is not recorded, so the retry asks for it again.
+    assert record["retry"] == "suMEDS-enrich <MEDS_ROOT> --ontology-source <PACKS_DIR>"
+
+
+def test_failed_enrichment_can_be_retried(
+    soft_failed_output: Path,
+    ontology_source: Path,
+    enriched_codes: pl.DataFrame,
+    tmp_path: Path,
+):
+    output_dir = tmp_path / "MEDS_cohort"
+    shutil.copytree(soft_failed_output / "metadata", output_dir / "metadata")
+    run_command(
+        ["suMEDS-enrich", str(output_dir), "--ontology-source", str(ontology_source)]
+    )
+    assert enrichment_record(output_dir)["enriched"] is True
+    retried = pl.read_parquet(output_dir / "metadata" / "codes.parquet")
+    assert retried.equals(enriched_codes)
