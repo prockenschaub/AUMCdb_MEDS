@@ -18,7 +18,7 @@
     "n_data_codes_missing_from_metadata": 0,
     "n_metadata_codes_absent_from_data": 0,
     "n_with_description": 14225,
-    "n_with_parent_codes": 2041,
+    "n_with_parent_codes": 2043,
     "ontology": {
       "by_vocabulary": {
         "ATC": {
@@ -32,6 +32,14 @@
             "n_finite": 6588553,
             "std": 6352.1
           },
+          "recognized": true
+        },
+        "Gender": {
+          "keys_digest": "sha256:e4b45da6fe1dc80b451f36d47db88ec674acc85ccd94f710db905a0aa75b53ca",
+          "n_child_codes": 2,
+          "n_distinct_keys": 2,
+          "n_measurements": 19643,
+          "n_subjects": 19643,
           "recognized": true
         },
         "LOINC": {
@@ -62,23 +70,23 @@
         }
       },
       "coverage": {
-        "frac_measurements_mapped": 0.512924,
-        "frac_observed_codes_with_parents": 0.14348,
-        "n_measurements_mapped": 99611325,
-        "n_measurements_unmapped": 94591710,
+        "frac_measurements_mapped": 0.513025,
+        "frac_observed_codes_with_parents": 0.14362,
+        "n_measurements_mapped": 99630968,
+        "n_measurements_unmapped": 94572067,
         "n_observed_codes": 14225,
-        "n_observed_codes_with_parents": 2041,
-        "n_observed_codes_without_parents": 12184
+        "n_observed_codes_with_parents": 2043,
+        "n_observed_codes_without_parents": 12182
       },
       "n_codes_in_multiple_vocabularies": 0,
-      "n_codes_with_parents": 2041,
-      "n_distinct_parents": 240,
-      "n_parent_links": 2041,
+      "n_codes_with_parents": 2043,
+      "n_distinct_parents": 242,
+      "n_parent_links": 2043,
       "n_parents_without_vocabulary": 0,
-      "n_vocabularies": 3,
-      "n_vocabularies_recognized": 3,
+      "n_vocabularies": 4,
+      "n_vocabularies_recognized": 4,
       "parents_per_code": {
-        "mean": 0.14348,
+        "mean": 0.14362,
         "n": 14225,
         "quantiles": {
           "p1": 0.0,
@@ -89,11 +97,11 @@
           "p95": 1.0,
           "p99": 1.0
         },
-        "std": 0.350574
+        "std": 0.350717
       },
       "present": true,
       "vocabularies_per_code": {
-        "mean": 0.14348,
+        "mean": 0.14362,
         "n": 14225,
         "quantiles": {
           "p1": 0.0,
@@ -104,7 +112,7 @@
           "p95": 1.0,
           "p99": 1.0
         },
-        "std": 0.350574
+        "std": 0.350717
       }
     },
     "present": true,
@@ -230,13 +238,42 @@
     }
   },
   "dataset": {
-    "created_at": "2026-11-04T17:13:19.688674+00:00",
+    "created_at": "2026-11-07T19:17:20.432651+00:00",
     "dataset_name": "AUMCdb",
-    "dataset_version": "1.0.2:0.1.1.dev6+g28e8cdaa1.d20261104",
+    "dataset_version": "1.0.2:0.1.1.dev11+g44c438749.d20261107",
     "etl_name": "MEDS_transforms",
     "etl_version": "0.7.1",
     "meds_version": "0.4.1",
-    "present": true
+    "present": true,
+    "sumeds_enrichment": {
+      "athena": false,
+      "coverage": {
+        "codes": 14225,
+        "described": [
+          14225,
+          14225
+        ],
+        "with_parent_codes": [
+          2041,
+          2043
+        ]
+      },
+      "enriched": true,
+      "enriched_at": "2026-11-07T19:17:38Z",
+      "ontology_source": "rvandewater/sumeds-ontologies@v0.2.0",
+      "options": {
+        "child_codes": false,
+        "child_depth": 3,
+        "exclude_self_parent_code": false,
+        "loinc_hierarchy": false,
+        "packs": true,
+        "parent_codes": true,
+        "sibling_codes": false
+      },
+      "rules": "AUMCdb",
+      "rules_sha256": "7be4cf93766373d8010afe85417849157458dfe6583710e8f0d96a4512b108e1",
+      "sumeds_version": "0.6.1"
+    }
   },
   "dataset_digest": {
     "by_file": {
@@ -263,28 +300,34 @@
       "data/tuning/0.parquet": "sha256:bd0673e443f76b62b205777d720d3b7d32abaa7c7b9be60a2b216a06a30e895c",
       "data/tuning/1.parquet": "sha256:eb59634f2192ca4b3cfc32a142f922011189861299d400ae300144f32a31eec6",
       "data/tuning/2.parquet": "sha256:944c20171a56a84347fcdad12f5ece7b5ee8b996d239556440611bd45829c309",
-      "metadata/codes.parquet": "sha256:89909aa11e8886e833d0c2833965a5169faba97a5a596266fbc6d7f308bab58a",
-      "metadata/dataset.json": "sha256:be06b57950fd402a833a9cd792a4e19b097194529f8ce6c33ba2e494bff8d5c2",
+      "metadata/codes.parquet": "sha256:d1c8321f6f4744ed380647fe8d51248316cbc82dd0d834cd5a5ce059029cb5b9",
+      "metadata/dataset.json": "sha256:f8ae79fa4839f408ea2f0963418a1bacb200cd499214b4037c39ad67abbb7717",
       "metadata/subject_splits.parquet": "sha256:132d28f7c1dcbe7ddaf2e33ae1c9ef6791dc6c84aace201f4cef597536f7b85e"
     },
-    "code_metadata": "sha256:6d37e5cb55c241cc91cc6017af3e38c30f0cdd2def18692fd5cf43529bbb5937",
-    "combined": "sha256:df01ce7a7d0c9060a6480324fb460b9dca051dece03f41d47bc40ed4b4b305d9",
+    "code_metadata": "sha256:89d33c96c55c5a259ddb2505f37fd1011c66e0343d93536d473090ffbbd87d0f",
+    "combined": "sha256:d270cd5f324a3ae066de5826e217d60847f165dc106140fa35dd2088d9c19b9f",
     "data": {
       "digest": "sha256:5d184bfe96a20515252ef85d91a37b7d242a83fbef77acf6f6897ced5b5bed12",
       "n_files": 23
     },
-    "dataset_metadata": "sha256:d2f1005d827808ed47ca93899950a3ff9b34cb8c391fd41e0279a5773747c3c8",
+    "dataset_metadata": "sha256:6a36ee70307b0e28ee236d46f4800ed19cb2a6390b4039764abcc9731f856942",
     "method": "files",
     "n_files": 26,
     "subject_splits": "sha256:e3e9a385481b55001e111c59b3d2a248d4b87b3962293bbe065cd22bfb03afa5"
   },
-  "extracted_at": "2026-11-04T22:17:20.441999",
+  "extracted_at": "2026-11-07T19:17:49.533414",
   "layout": {
     "code_metadata_columns": {
       "code": "String",
       "code_template": "String",
+      "concept_code": "String",
+      "concept_id": "Int64",
       "description": "String",
-      "parent_codes": "List(String)"
+      "domain_id": "String",
+      "parent_codes": "List(String)",
+      "parent_names": "Map(String, String)",
+      "standard_concept": "String",
+      "vocabulary_id": "String"
     },
     "column_dtype_conflicts": {},
     "column_presence": {
