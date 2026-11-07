@@ -28,7 +28,7 @@ This ETL targets AmsterdamUMCdb **v1.0.2**.
 
 ## Setup
 
-Requires Python `>=3.11,<3.14` and MEDS-Extract `>=0.7.1`.
+Requires Python `>=3.11.4,<3.14` and MEDS-Extract `>=0.8`.
 
 ```bash
 pip install AUMCdb_MEDS
@@ -91,8 +91,9 @@ The number of subjects per shard is set by `n_subjects_per_shard` under `etl:` i
     `X-Dataverse-key` header read from `${oc.env:AUMCDB_API_KEY}`, so the credential never lands in
     the config, the logs, or the output tree. Both entries are zips, unpacked by the download layer.
     The `common` entry is the public item dictionary, pinned to a commit and checked by SHA-256.
-- **`etl:`** — the dataset name and curated stage options, including `encoding: cp1252`: six of
-    the seven source CSVs are Windows-1252, not UTF-8.
+- **`etl:`** — the dataset name and curated stage options, including the `encoding:` of each
+    source: six of the seven data CSVs are Windows-1252, not UTF-8 (see
+    [Source encoding](#source-encoding)).
 - **the event tables** — what to extract, in [dftly](https://github.com/mmcdermott/dftly)
     expressions.
 
@@ -115,10 +116,25 @@ fall in a different year group from their first, so this matches anchoring on th
 
 ### Source encoding
 
-AmsterdamUMCdb ships its CSVs in Windows-1252 (only `admissions.csv` is plain ASCII). The config
-declares `encoding: cp1252`, so MEDS-Extract decodes them correctly and non-ASCII characters in item
-names and units survive intact. Decoding is strict: an invalid byte stops
-the run instead of silently becoming `�`.
+AmsterdamUMCdb ships its CSVs in Windows-1252 (only `admissions.csv` is plain ASCII), while the
+public item dictionary is UTF-8 with a byte-order mark. The config declares the codec of each source
+under `etl.encoding` (`cp1252` for the seven data tables, `utf8` for `dictionary`), so MEDS-Extract
+decodes them correctly and non-ASCII characters in item names, units and values (`°C`, `µg`,
+`Patiëntgewicht`) survive intact, and the item names still match the dictionary's. Decoding is
+strict: an invalid byte stops the run instead of silently becoming `�`.
+
+Two MEDS-Extract 0.8 changes made the per-source form necessary:
+
+- `etl.encoding` now also decodes the `_metadata` sources. The single `encoding: cp1252` that
+    0.7 applied only to the data tables would now decode the UTF-8 dictionary as Windows-1252,
+    which turns its byte-order mark into part of the first column name (the run stops because
+    `itemid` is missing) and garbles its non-ASCII names.
+- A source the config does not list is detected (`etl.encoding: auto`): valid UTF-8 is read as
+    UTF-8, anything else as Windows-1252, and a file that mixes the two stops the run. On the v1.0.2
+    files, detection picks UTF-8 for `admissions.csv` (plain ASCII, so the same text) and
+    Windows-1252 for the other six, which is what the config declares. It would cost a full extra
+    read of every file (`numericitems.csv` alone is about 11 GB) and a warning per file, so the
+    config declares the codecs instead.
 
 ## Output
 
@@ -192,22 +208,22 @@ that the rule matches exactly the gender codes the config builds.
 
 ## Testing with synthetic data
 
-You can run the whole ETL without access to AmsterdamUMCdb.
-[MESSY_synth](https://github.com/mmcdermott/MESSY_synth) reads the config, works out what the raw
-tables must look like, and writes fake source files with the right shape. CI does this on every
-pull request (see [`.github/workflows/synthetic-etl.yaml`](.github/workflows/synthetic-etl.yaml)):
+You can run the whole ETL without access to AmsterdamUMCdb. The test suite writes a tiny, entirely
+synthetic dataset with the column layout and encodings of the v1.0.2 files and a small item
+dictionary in the published format ([`tests/conftest.py`](tests/conftest.py)), runs
+`meds-extract-run spec=AUMCdb` over it and checks that every event's codes are described, that the
+non-ASCII names survive both encodings, and that `codes.parquet` validates against the MEDS
+code-metadata schema. CI does this on every pull request (see
+[`.github/workflows/synthetic-etl.yaml`](.github/workflows/synthetic-etl.yaml)):
 
 ```bash
-pip install AUMCdb_MEDS MESSY-synth # MESSY-synth needs Python >= 3.12
-MESSY-synth AUMCdb -o raw_synthetic/ --explain
-meds-extract-run spec=AUMCdb output_dir=meds_synthetic/ do_download=false input_dir=raw_synthetic/
+pip install -e .[dev]
+pytest tests
 ```
 
-Every generated value is visibly fake, so the output is only useful for checking that the
-pipeline runs end to end and that every event still produces rows. MESSY-synth's placeholder
-dictionary matches no table, so its item codes stay undescribed; `pytest tests` (also run in CI)
-rebuilds with a small fixture dictionary and checks that every event's codes are described and that
-`codes.parquet` validates against the MEDS code-metadata schema.
+Every value is visibly fake, so the output is only useful for checking that the pipeline runs end
+to end. [MESSY_synth](https://github.com/mmcdermott/MESSY_synth), which generated the synthetic
+data before, still pins `MEDS-extract<0.8` and cannot read this config.
 
 ## Summary statistics
 

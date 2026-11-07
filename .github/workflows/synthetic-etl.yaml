@@ -1,7 +1,11 @@
-# Smoke-tests the MESSY config without access to AmsterdamUMCdb: MESSY_synth infers the raw
-# table shapes from the config, writes fake source files, and the real ETL runs over them.
+# Runs the ETL without access to AmsterdamUMCdb: tests/conftest.py writes a tiny synthetic dataset
+# with the layout and encodings of the real files, and the tests run `meds-extract-run spec=AUMCdb`
+# over it.
+#
+# MESSY_synth generated the synthetic data here before, but it still pins MEDS-extract<0.8 and cannot
+# read the 0.8 config (`_table.joins`, a per-source `etl.encoding`), even in its own environment.
 
-name: Synthetic ETL for MESSY files using MESSY_synth
+name: Synthetic ETL
 
 on:
   push:
@@ -16,8 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        # MESSY-synth requires Python >= 3.12.
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -29,13 +32,8 @@ jobs:
 
       - name: Install packages
         run: |
-          pip install .[dev] MESSY-synth
+          pip install .[dev]
 
-      - name: Generate and extract synthetic data
-        run: |
-          MESSY-synth AUMCdb -o raw_synthetic/ --explain
-          meds-extract-run spec=AUMCdb output_dir=./aumcdb_meds_synth input_dir=raw_synthetic do_download=false
-
-      - name: Check code metadata
+      - name: Run the synthetic ETL and the tests
         run: |
           pytest -q tests

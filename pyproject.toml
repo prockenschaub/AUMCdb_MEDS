@@ -13,15 +13,21 @@ authors = [
 ]
 description = "A MEDS-Extract ETL pipeline that converts AmsterdamUMCdb into the MEDS format."
 readme = "README.md"
-requires-python = ">=3.11"
+# Mirrors MEDS-Extract 0.8's own floor and ceiling. A looser range admits interpreters it cannot
+# be installed on, and uv then refuses to resolve the project at all.
+requires-python = ">=3.11.4,<3.14"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 # Pure-config ETL: the only runtime dependency is MEDS-Extract itself, which supplies both
-# CLIs (`meds-extract-download`, `meds-extract-run`) and every extraction stage.
-dependencies = ["MEDS-extract[download]>=0.7.1,<0.8"]
+# CLIs (`meds-extract-download`, `meds-extract-run`) and every extraction stage. It is capped below
+# the next minor because MEDS-Extract 0.x minors are breaking (MESSY syntax, runner CLI), so raise it
+# deliberately when migrating. 0.8 is the floor because it renamed the MESSY `_table.join` key to
+# `_table.joins`, which the config uses (0.7 rejects the new key and 0.8 the old one), and decodes
+# `_metadata` sources with `etl.encoding` too.
+dependencies = ["MEDS-extract[download]>=0.8.0,<0.9"]
 
 [tool.setuptools_scm]
 
