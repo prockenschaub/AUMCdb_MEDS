@@ -238,12 +238,16 @@
     }
   },
   "dataset": {
-    "created_at": "2026-11-07T19:17:20.432651+00:00",
+    "created_at": "2026-11-08T00:42:06.269973+00:00",
     "dataset_name": "AUMCdb",
-    "dataset_version": "1.0.2:0.1.1.dev11+g44c438749.d20261107",
+    "dataset_version": "1.0.2:0.1.1.dev13+gfb9dac943.d20261108",
+    "description_uri": "https://doi.org/10.17026/dans-22u-f8vd",
     "etl_name": "MEDS_transforms",
     "etl_version": "0.7.1",
     "meds_version": "0.4.1",
+    "other_extension_columns": [
+      "source_block"
+    ],
     "present": true,
     "sumeds_enrichment": {
       "athena": false,
@@ -259,7 +263,7 @@
         ]
       },
       "enriched": true,
-      "enriched_at": "2026-11-07T19:17:38Z",
+      "enriched_at": "2026-11-08T00:42:23Z",
       "ontology_source": "rvandewater/sumeds-ontologies@v0.2.0",
       "options": {
         "child_codes": false,
@@ -271,8 +275,8 @@
         "sibling_codes": false
       },
       "rules": "AUMCdb",
-      "rules_sha256": "7be4cf93766373d8010afe85417849157458dfe6583710e8f0d96a4512b108e1",
-      "sumeds_version": "0.6.1"
+      "rules_sha256": "89462323a926a5aaf8d909228c94ccfcaf87048d7382ed00c5590a037a2acff9",
+      "sumeds_version": "0.6.2"
     }
   },
   "dataset_digest": {
@@ -301,7 +305,7 @@
       "data/tuning/1.parquet": "sha256:eb59634f2192ca4b3cfc32a142f922011189861299d400ae300144f32a31eec6",
       "data/tuning/2.parquet": "sha256:944c20171a56a84347fcdad12f5ece7b5ee8b996d239556440611bd45829c309",
       "metadata/codes.parquet": "sha256:d1c8321f6f4744ed380647fe8d51248316cbc82dd0d834cd5a5ce059029cb5b9",
-      "metadata/dataset.json": "sha256:f8ae79fa4839f408ea2f0963418a1bacb200cd499214b4037c39ad67abbb7717",
+      "metadata/dataset.json": "sha256:94671596ef9e98eb09e5d366893ae72bf01228d7c1824aeeee23178b0ddae6a1",
       "metadata/subject_splits.parquet": "sha256:132d28f7c1dcbe7ddaf2e33ae1c9ef6791dc6c84aace201f4cef597536f7b85e"
     },
     "code_metadata": "sha256:89d33c96c55c5a259ddb2505f37fd1011c66e0343d93536d473090ffbbd87d0f",
@@ -310,12 +314,12 @@
       "digest": "sha256:5d184bfe96a20515252ef85d91a37b7d242a83fbef77acf6f6897ced5b5bed12",
       "n_files": 23
     },
-    "dataset_metadata": "sha256:6a36ee70307b0e28ee236d46f4800ed19cb2a6390b4039764abcc9731f856942",
+    "dataset_metadata": "sha256:c33c1f76ddcb25c79a4a401a3e4c335e14657b553dfa94df9612c08c7ed1a4a4",
     "method": "files",
     "n_files": 26,
     "subject_splits": "sha256:e3e9a385481b55001e111c59b3d2a248d4b87b3962293bbe065cd22bfb03afa5"
   },
-  "extracted_at": "2026-11-07T19:17:49.533414",
+  "extracted_at": "2026-11-08T00:42:35.954608",
   "layout": {
     "code_metadata_columns": {
       "code": "String",
