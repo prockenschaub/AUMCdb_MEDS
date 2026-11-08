@@ -1,6 +1,6 @@
 # Runs the ETL without access to AmsterdamUMCdb: tests/conftest.py writes a tiny synthetic dataset
 # with the layout and encodings of the real files, and the tests run `meds-extract-run spec=AUMCdb`
-# and `suMEDS-extract spec=AUMCdb` (offline, against a synthetic ontology pack) over it.
+# over it, with and without its suMEDS enrichment stage (offline, against a synthetic ontology pack).
 #
 # MESSY_synth generated the synthetic data here before, but it still pins MEDS-extract<0.8 and cannot
 # read the 0.8 config (`_table.joins`, a per-source `etl.encoding`), even in its own environment.

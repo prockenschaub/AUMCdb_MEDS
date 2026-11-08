@@ -2,8 +2,8 @@
 
 suMEDS (https://github.com/rvandewater/SumMEDS) reads `src/AUMCdb_MEDS/sumeds_rules.yaml` to add
 vocabulary tags the dataset does not carry itself. The package registers it in suMEDS's
-`sumeds.rules` entry-point group under its MEDS-Extract spec name, so `suMEDS-extract spec=AUMCdb`
-and `--rules AUMCdb` find it. Its strict `sumeds-rules/0.1` loader (`sumeds.load_rules`) validates
+`sumeds.rules` entry-point group under its MEDS-Extract spec name, so the spec's `sumeds_enrich`
+stage and `--rules AUMCdb` find it. Its strict `sumeds-rules/0.1` loader (`sumeds.load_rules`) validates
 the file, and the rule objects its enrichment uses resolve the example codes, so these tests only
 state what AmsterdamUMCdb's codes must resolve to. The example codes are built by evaluating the
 code templates of `configs/messy.yaml` on made-up values, and taken from the ETL run over the
@@ -51,7 +51,7 @@ def test_rules_are_package_data():
 
 
 def test_rules_are_registered_under_the_spec_name():
-    """`suMEDS-extract spec=AUMCdb` and `--rules AUMCdb` find the rules by this entry point, which
+    """The spec's `sumeds_enrich` stage and `--rules AUMCdb` find the rules by this entry point, which
     has the same name as the MEDS-Extract pipeline."""
     assert PIPELINE_NAME in {
         ep.name for ep in entry_points(group="MEDS_extract.pipelines")

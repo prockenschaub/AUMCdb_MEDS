@@ -33,8 +33,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-# The CLIs live next to the interpreter; meds-extract-run also spawns its stage CLIs, and
-# suMEDS-extract finds meds-extract-run, through PATH.
+# The CLIs live next to the interpreter; meds-extract-run also spawns its stage CLIs through PATH.
 ENV = os.environ | {
     "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}"
 }
@@ -210,6 +209,7 @@ def run_command(argv: list[str]) -> None:
 
 @pytest.fixture(scope="session")
 def meds_output(tmp_path_factory, raw_dir: Path) -> Path:
+    """The plain ETL: the spec's `sumeds_enrich` post-stage is skipped (see test_run_with_enrichment.py)."""
     output_dir = tmp_path_factory.mktemp("aumcdb") / "MEDS_cohort"
     run_command(
         [
@@ -218,6 +218,7 @@ def meds_output(tmp_path_factory, raw_dir: Path) -> Path:
             f"output_dir={output_dir}",
             "do_download=false",
             f"input_dir={raw_dir}",
+            "skip_stages=[sumeds_enrich]",
         ]
     )
     return output_dir

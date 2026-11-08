@@ -1,14 +1,16 @@
-"""`suMEDS-extract spec=AUMCdb` runs the ETL and then suMEDS enrichment, offline.
+"""`meds-extract-run spec=AUMCdb` runs the ETL and then suMEDS enrichment, offline.
 
-This package registers its rules in suMEDS's `sumeds.rules` entry-point group under the same name
-as its MEDS-Extract spec, so `suMEDS-extract` finds them from `spec=AUMCdb` alone. The ontology
+The spec declares suMEDS's `sumeds_enrich` stage in `etl.post_stages`, with the rules this package
+registers in suMEDS's `sumeds.rules` entry-point group under the same name, `AUMCdb`. The ontology
 source is a tiny pack repository in suMEDS's `sumeds-ontologies/0.1` layout, built here with
-made-up titles for the LOINC codes of the synthetic dictionary of ``conftest.py``, so the test reads
-nothing over the network and does not depend on the published packs.
+made-up titles for the LOINC codes of the synthetic dictionary of ``conftest.py``, and passed to the
+stage at run time as `overrides=['++stage_cfg.ontology_source=DIR','++stage_cfg.offline=true']`, so
+the test reads nothing over the network and does not depend on the published packs.
 
-A failed enrichment does not fail the ETL: with an empty pack source, `suMEDS-extract` keeps the
-plain `codes.parquet`, records the failure in `metadata/dataset.json`, and `suMEDS-enrich OUTPUT`
-enriches it later.
+A failed enrichment does not fail the ETL: with an empty pack source, the run keeps the plain
+`codes.parquet`, records the failure in `metadata/dataset.json`, and `suMEDS-enrich OUTPUT` enriches
+it later. `skip_stages=[sumeds_enrich]` (the plain build of ``conftest.py``) gives exactly the ETL
+without the stage.
 """
 
 import csv
@@ -21,8 +23,11 @@ from pathlib import Path
 import polars as pl
 import pyarrow.parquet as pq
 import pytest
+import yaml
 from conftest import run_command
 from meds import CodeMetadataSchema, DatasetMetadataSchema
+
+from AUMCdb_MEDS import MESSY_CFG
 
 # vocabulary -> (release, codes). LOINC terms have no parents in the pack. LOINC 2951-2, the parent
 # reference of MEASURE//Synthetisch natrium//mmol/l, is deliberately missing, so that code must
@@ -106,15 +111,14 @@ def ontology_source(tmp_path_factory) -> Path:
 def run_with_enrichment(output_dir: Path, raw_dir: Path, ontology_source: Path) -> Path:
     run_command(
         [
-            "suMEDS-extract",
+            "meds-extract-run",
             "spec=AUMCdb",
             f"output_dir={output_dir}",
             "do_download=false",
             f"input_dir={raw_dir}",
-            "--",
-            "--ontology-source",
-            str(ontology_source),
-            "--offline",
+            # Options of the `sumeds_enrich` stage. Overrides reach every stage of the pipeline, so
+            # `++` adds the key where a stage does not have it.
+            f"overrides=['++stage_cfg.ontology_source={ontology_source}','++stage_cfg.offline=true']",
         ]
     )
     return output_dir
@@ -135,7 +139,7 @@ def enriched_output(tmp_path_factory, raw_dir: Path, ontology_source: Path) -> P
 
 @pytest.fixture(scope="session")
 def soft_failed_output(tmp_path_factory, raw_dir: Path) -> Path:
-    """`suMEDS-extract` with an empty pack source, as on a site that cannot reach the packs."""
+    """The ETL with an empty pack source, as on a site that cannot reach the packs."""
     output_dir = tmp_path_factory.mktemp("aumcdb_soft_fail") / "MEDS_cohort"
     return run_with_enrichment(output_dir, raw_dir, tmp_path_factory.mktemp("no_packs"))
 
@@ -267,3 +271,41 @@ def test_failed_enrichment_can_be_retried(
     assert enrichment_record(output_dir)["enriched"] is True
     retried = pl.read_parquet(output_dir / "metadata" / "codes.parquet")
     assert retried.equals(enriched_codes)
+
+
+def test_skipping_the_stage_gives_the_plain_etl(
+    meds_output: Path, raw_dir: Path, tmp_path: Path
+):
+    """`skip_stages=[sumeds_enrich]` writes no record, and the same cohort as the spec without the stage."""
+    metadata = json.loads((meds_output / "metadata" / "dataset.json").read_text())
+    assert "sumeds_enrichment" not in metadata
+
+    spec = yaml.safe_load(MESSY_CFG.read_text())
+    del spec["etl"]["post_stages"]
+    spec_fp = tmp_path / "messy.yaml"
+    spec_fp.write_text(yaml.safe_dump(spec, sort_keys=False))
+    output_dir = tmp_path / "MEDS_cohort"
+    run_command(
+        [
+            "meds-extract-run",
+            f"spec={spec_fp}",
+            f"output_dir={output_dir}",
+            "do_download=false",
+            f"input_dir={raw_dir}",
+        ]
+    )
+
+    codes = Path("metadata", "codes.parquet")
+    assert pl.read_parquet(output_dir / codes).equals(
+        pl.read_parquet(meds_output / codes)
+    )
+    shards = sorted(
+        fp.relative_to(output_dir) for fp in (output_dir / "data").rglob("*.parquet")
+    )
+    assert shards == sorted(
+        fp.relative_to(meds_output) for fp in (meds_output / "data").rglob("*.parquet")
+    )
+    for shard in shards:
+        assert pl.read_parquet(output_dir / shard).equals(
+            pl.read_parquet(meds_output / shard)
+        ), shard

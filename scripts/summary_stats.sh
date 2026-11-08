@@ -35,9 +35,9 @@ build() {
   local kind=$1 input=$2 output=$3
   case $kind in
     full)
-      # suMEDS-extract runs meds-extract-run and then the suMEDS enrichment of metadata/codes.parquet,
-      # so the baseline covers the output of the documented one-command build.
-      uv run --no-project --python 3.12 --with-editable . suMEDS-extract spec=AUMCdb do_download=false input_dir="$input" output_dir="$output" >&2 \
+      # The spec's sumeds_enrich post-stage enriches metadata/codes.parquet after the ETL, so the
+      # baseline covers the output of the documented one-command build.
+      uv run --no-project --python 3.12 --with-editable . meds-extract-run spec=AUMCdb do_download=false input_dir="$input" output_dir="$output" >&2 \
         && echo "$output"
       ;;
     *) die "unknown kind '$kind' (expected one of: $KINDS)" ;;

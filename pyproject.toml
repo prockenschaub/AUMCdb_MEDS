@@ -23,17 +23,18 @@ classifiers = [
 ]
 # Pure-config ETL: MEDS-Extract supplies both CLIs (`meds-extract-download`, `meds-extract-run`)
 # and every extraction stage. It is capped below the next minor because MEDS-Extract 0.x minors are
-# breaking (MESSY syntax, runner CLI), so raise it deliberately when migrating. 0.8 is the floor
-# because it renamed the MESSY `_table.join` key to `_table.joins`, which the config uses (0.7
-# rejects the new key and 0.8 the old one), and decodes `_metadata` sources with `etl.encoding` too.
-# suMEDS provides `suMEDS-extract`, which runs this ETL and then enriches its code metadata with the
-# rules registered below. 0.6 is the first release that writes `parent_names` as a code-to-name map.
-# 0.6.1 makes a failed enrichment a warning that keeps the ETL output (e.g. without internet), and
-# records the enrichment in `metadata/dataset.json`. It is capped below the next minor for the same
-# reason (its rules format and CLI are still 0.x).
+# breaking (MESSY syntax, runner CLI), so raise it deliberately when migrating. 0.8 renamed the MESSY
+# `_table.join` key to `_table.joins`, which the config uses (0.7 rejects the new key and 0.8 the old
+# one), and decodes `_metadata` sources with `etl.encoding` too. 0.8.1 is the floor because it runs
+# the `etl.post_stages` the config declares and writes its dataset.json fields.
+# suMEDS 0.6.2 registers the `sumeds_enrich` stage the config declares as a post-stage, which
+# enriches the code metadata with the rules registered below. A failed enrichment is a warning that
+# keeps the ETL output (e.g. without internet), and `metadata/dataset.json` records whether the build
+# was enriched. 0.6 writes `parent_names` as a code-to-name map. It is capped below the next minor
+# for the same reason (its rules format and CLI are still 0.x).
 dependencies = [
-  "MEDS-extract[download]>=0.8.0,<0.9",
-  "sumeds>=0.6.1,<0.7",
+  "MEDS-extract[download]>=0.8.1,<0.9",
+  "sumeds>=0.6.2,<0.7",
 ]
 
 [tool.setuptools_scm]
@@ -51,8 +52,8 @@ slurm_parallelism = ["hydra-submitit-launcher"]
 [project.entry-points."MEDS_extract.pipelines"]
 AUMCdb = "AUMCdb_MEDS.configs:messy.yaml"
 
-# Registers the suMEDS rules under the same name, so `suMEDS-extract spec=AUMCdb` and
-# `--rules AUMCdb` find them.
+# Registers the suMEDS rules under the same name, so the config's `sumeds_enrich: {rules: AUMCdb}`
+# and `--rules AUMCdb` find them.
 [project.entry-points."sumeds.rules"]
 AUMCdb = "AUMCdb_MEDS:sumeds_rules.yaml"
 

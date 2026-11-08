@@ -6,10 +6,8 @@
 #
 #   meds-extract-run spec=AUMCdb output_dir=$OUTPUT_DIR
 #
-# or, to also enrich the code metadata with the suMEDS rules this package registers
-# (`sumeds_rules.yaml`):
-#
-#   suMEDS-extract spec=AUMCdb output_dir=$OUTPUT_DIR
+# which also enriches the code metadata with the suMEDS rules this package registers
+# (`sumeds_rules.yaml`), in the `sumeds_enrich` post-stage declared under `etl:`.
 #
 # ---------------------------------------------------------------------------
 # HOW THE PSEUDO-TIMESTAMPS WORK
@@ -81,6 +79,17 @@ etl:
     processitems: cp1252
     drugitems: cp1252
     dictionary: utf8
+  # Written to metadata/dataset.json: the dataset's DANS DataVerse page. No `license`: the page
+  # lists the DANS Licence, and access also requires AmsterdamUMCdb's own end user license
+  # agreement, so neither name alone describes the terms.
+  description_uri: https://doi.org/10.17026/dans-22u-f8vd
+  # After the canonical pipeline, suMEDS (a dependency of this package) enriches
+  # metadata/codes.parquet with the rules registered as AUMCdb and records it in
+  # metadata/dataset.json. A failed enrichment (e.g. without internet access) keeps codes.parquet as
+  # the ETL wrote it and does not fail the run; `suMEDS-enrich OUTPUT_DIR` finishes it later.
+  # `skip_stages=[sumeds_enrich]` leaves it out of a run.
+  post_stages:
+    - sumeds_enrich: { rules: AUMCdb }
 
 _defaults:
   subject_id: $patientid

@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
 
       - name: Check that ETL changes regenerated the baseline
-        # The baseline is built with suMEDS-extract, so the suMEDS rules count as ETL changes too.
+        # The spec's sumeds_enrich post-stage applies the suMEDS rules, so they count as ETL changes too.
         # Documentation does not affect what the ETL writes.
         run: |
           changed=$(git diff --name-only HEAD^1 HEAD)

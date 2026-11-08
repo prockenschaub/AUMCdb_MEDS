@@ -5,10 +5,8 @@ the `MEDS_extract.pipelines` entry-point group, so it runs as:
 
     meds-extract-run spec=AUMCdb output_dir=$OUTPUT_DIR
 
-`sumeds_rules.yaml` is registered under the same name in suMEDS's `sumeds.rules` group, so the ETL
-followed by suMEDS enrichment of its code metadata runs as:
-
-    suMEDS-extract spec=AUMCdb output_dir=$OUTPUT_DIR
+`sumeds_rules.yaml` is registered under the same name in suMEDS's `sumeds.rules` group, and the
+config's `sumeds_enrich` post-stage enriches the code metadata with it at the end of that run.
 """
 
 from importlib.metadata import PackageNotFoundError, version
