@@ -230,9 +230,9 @@
     }
   },
   "dataset": {
-    "created_at": "2026-11-04T17:13:19.688674+00:00",
+    "created_at": "2026-11-10T22:51:10.360906+00:00",
     "dataset_name": "AUMCdb",
-    "dataset_version": "1.0.2:0.1.1.dev6+g28e8cdaa1.d20261104",
+    "dataset_version": "1.0.2:0.1.1",
     "etl_name": "MEDS_transforms",
     "etl_version": "0.7.1",
     "meds_version": "0.4.1",
@@ -264,7 +264,7 @@
       "data/tuning/1.parquet": "sha256:eb59634f2192ca4b3cfc32a142f922011189861299d400ae300144f32a31eec6",
       "data/tuning/2.parquet": "sha256:944c20171a56a84347fcdad12f5ece7b5ee8b996d239556440611bd45829c309",
       "metadata/codes.parquet": "sha256:89909aa11e8886e833d0c2833965a5169faba97a5a596266fbc6d7f308bab58a",
-      "metadata/dataset.json": "sha256:be06b57950fd402a833a9cd792a4e19b097194529f8ce6c33ba2e494bff8d5c2",
+      "metadata/dataset.json": "sha256:9812f9f235ea084d88ab2e2c97d4ef243f827a47286c876c60da260908eb4179",
       "metadata/subject_splits.parquet": "sha256:132d28f7c1dcbe7ddaf2e33ae1c9ef6791dc6c84aace201f4cef597536f7b85e"
     },
     "code_metadata": "sha256:6d37e5cb55c241cc91cc6017af3e38c30f0cdd2def18692fd5cf43529bbb5937",
@@ -273,12 +273,12 @@
       "digest": "sha256:5d184bfe96a20515252ef85d91a37b7d242a83fbef77acf6f6897ced5b5bed12",
       "n_files": 23
     },
-    "dataset_metadata": "sha256:d2f1005d827808ed47ca93899950a3ff9b34cb8c391fd41e0279a5773747c3c8",
+    "dataset_metadata": "sha256:3514e422cbd1bda5ab8f38a2c323bd35e115e5d9abc3a919290ec6494f069315",
     "method": "files",
     "n_files": 26,
     "subject_splits": "sha256:e3e9a385481b55001e111c59b3d2a248d4b87b3962293bbe065cd22bfb03afa5"
   },
-  "extracted_at": "2026-11-04T22:17:20.441999",
+  "extracted_at": "2026-11-10T22:51:48.558734",
   "layout": {
     "code_metadata_columns": {
       "code": "String",
@@ -339,8 +339,22 @@
     ],
     "shard_names_digest": "sha256:fe2722a6db5eeabf31bb695f32c6e2c191ddb0e284983f0b55ab1da61632204e"
   },
-  "meds_summary_stats_version": "0.0.3",
+  "meds_summary_stats_version": "0.0.4",
   "per_subject": {
+    "measurements_per_day": {
+      "mean": 396.622,
+      "n": 20109,
+      "quantiles": {
+        "p1": 0.748506,
+        "p25": 25.8754,
+        "p5": 3.64365,
+        "p50": 131.781,
+        "p75": 274.678,
+        "p95": 843.097,
+        "p99": 5465.57
+      },
+      "std": 2306.83
+    },
     "n_events": {
       "mean": 1266.2,
       "n": 20109,
@@ -418,7 +432,7 @@
     "n_subjects_in_splits_without_data": 0,
     "present": true
   },
-  "stats_schema_version": 1,
+  "stats_schema_version": 2,
   "time": {
     "by_year": {
       "1923": {
