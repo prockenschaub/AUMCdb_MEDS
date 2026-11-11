@@ -73,9 +73,8 @@ jobs:
         run: |
           # The repository has no uv.lock, so this resolves the dependencies afresh (no --locked).
           uv sync
-          # MEDS-Extract 0.8 support (`_table.joins`, per-source `etl.encoding`) is on MESSY_synth's
-          # main branch but not in a PyPI release yet, so pin the commit until one is published.
-          uv pip install "MESSY_synth @ git+https://github.com/mmcdermott/MESSY_synth@5585b7a66b44e27f9e55b9f7d9ed4321cfe27a63"
+          # MESSY_synth 0.1.0 is the first release that reads MEDS-Extract 0.8 configs.
+          uv pip install "MESSY_synth==0.1.0"
 
       - name: Generate and extract synthetic data
         # The synthetic tables include the item dictionary, and do_download=false keeps
