@@ -28,7 +28,8 @@ This ETL targets AmsterdamUMCdb **v1.0.2**.
 
 ## Setup
 
-Requires Python `>=3.11,<3.14` and MEDS-Extract `>=0.7.1`.
+Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.8.1 and
+[suMEDS](https://github.com/rvandewater/SumMEDS) 0.6.2, which provide the commands below.
 
 ```bash
 pip install AUMCdb_MEDS
@@ -49,8 +50,13 @@ meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR
 ```
 
 That single command downloads the DataVerse archives, unpacks them, and runs the full
-eight-stage MEDS-Extract pipeline. To stage the raw data separately, or to use a copy you already
-have:
+eight-stage MEDS-Extract pipeline. As its last step, [suMEDS](https://github.com/rvandewater/SumMEDS)
+(installed with this package) enriches `metadata/codes.parquet`: it tags the gender codes with
+OMOP Gender concepts, and identifies and names the LOINC codes that the item dictionary maps items
+to (see [Enriching code metadata with suMEDS](#enriching-code-metadata-with-sumeds)). For the plain
+ETL, without the enrichment, add `skip_stages=[sumeds_enrich]`.
+
+To stage the raw data separately, or to use a copy you already have:
 
 ```bash
 meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR
@@ -91,8 +97,10 @@ The number of subjects per shard is set by `n_subjects_per_shard` under `etl:` i
     `X-Dataverse-key` header read from `${oc.env:AUMCDB_API_KEY}`, so the credential never lands in
     the config, the logs, or the output tree. Both entries are zips, unpacked by the download layer.
     The `common` entry is the public item dictionary, pinned to a commit and checked by SHA-256.
-- **`etl:`** — the dataset name and curated stage options, including `encoding: cp1252`: six of
-    the seven source CSVs are Windows-1252, not UTF-8.
+- **`etl:`** — the dataset name and curated stage options, including the `encoding:` of each
+    source: six of the seven data CSVs are Windows-1252, not UTF-8 (see
+    [Source encoding](#source-encoding)). It also gives the dataset's DataVerse page for
+    `metadata/dataset.json`, and declares the suMEDS enrichment that runs after the pipeline.
 - **the event tables** — what to extract, in [dftly](https://github.com/mmcdermott/dftly)
     expressions.
 
@@ -115,10 +123,25 @@ fall in a different year group from their first, so this matches anchoring on th
 
 ### Source encoding
 
-AmsterdamUMCdb ships its CSVs in Windows-1252 (only `admissions.csv` is plain ASCII). The config
-declares `encoding: cp1252`, so MEDS-Extract decodes them correctly and non-ASCII characters in item
-names and units survive intact. Decoding is strict: an invalid byte stops
-the run instead of silently becoming `�`.
+AmsterdamUMCdb ships its CSVs in Windows-1252 (only `admissions.csv` is plain ASCII), while the
+public item dictionary is UTF-8 with a byte-order mark. The config declares the codec of each source
+under `etl.encoding` (`cp1252` for the seven data tables, `utf8` for `dictionary`), so MEDS-Extract
+decodes them correctly and non-ASCII characters in item names, units and values (`°C`, `µg`,
+`Patiëntgewicht`) survive intact, and the item names still match the dictionary's. Decoding is
+strict: an invalid byte stops the run instead of silently becoming `�`.
+
+Two MEDS-Extract 0.8 changes made the per-source form necessary:
+
+- `etl.encoding` now also decodes the `_metadata` sources. The single `encoding: cp1252` that
+    0.7 applied only to the data tables would now decode the UTF-8 dictionary as Windows-1252,
+    which turns its byte-order mark into part of the first column name (the run stops because
+    `itemid` is missing) and garbles its non-ASCII names.
+- A source the config does not list is detected (`etl.encoding: auto`): valid UTF-8 is read as
+    UTF-8, anything else as Windows-1252, and a file that mixes the two stops the run. On the v1.0.2
+    files, detection picks UTF-8 for `admissions.csv` (plain ASCII, so the same text) and
+    Windows-1252 for the other six, which is what the config declares. It would cost a full extra
+    read of every file (`numericitems.csv` alone is about 11 GB) and a warning per file, so the
+    config declares the codecs instead.
 
 ## Output
 
@@ -163,59 +186,120 @@ are described by their Dutch name, itemid and category. On v1.0.2, every item na
 six item tables has a dictionary row for that table (checked against the raw tables), so every
 code gets a description.
 The parent codes are AmsterdamUMC's own item-level mappings (made for the Dutch ICU data
-warehouse); the vocabulary's own text is left to vocabulary tooling. MEDS 0.4 makes `description`
-optional, so consumers must still not rely on it for datasets built with older releases.
+warehouse); the vocabulary's own text is left to vocabulary tooling such as suMEDS (below). MEDS
+0.4 makes `description` optional, so consumers must still not rely on it for datasets built with
+older releases.
 
 ### Enriching code metadata with suMEDS
 
 Vocabulary tagging that AmsterdamUMCdb does not carry itself lives in
 [suMEDS](https://github.com/rvandewater/SumMEDS) and its versioned ontology data (sumeds-ontologies,
-pinned release), which maintain one copy for all MEDS ETLs. This package ships a rules file for it,
-[`src/AUMCdb_MEDS/sumeds_rules.yaml`](src/AUMCdb_MEDS/sumeds_rules.yaml) (package data, also
-`AUMCdb_MEDS.SUMEDS_RULES`, format `sumeds-rules/0.1`). After the ETL, run:
+pinned release), which maintain one copy for all MEDS ETLs, rather than in this ETL. The package
+ships the rules for it, [`src/AUMCdb_MEDS/sumeds_rules.yaml`](src/AUMCdb_MEDS/sumeds_rules.yaml)
+(package data, also `AUMCdb_MEDS.SUMEDS_RULES`, format `sumeds-rules/0.1`), registered in suMEDS's `sumeds.rules` entry-point group under the same
+name as the MEDS-Extract spec, `AUMCdb`. The spec declares suMEDS's `sumeds_enrich` stage after the
+canonical pipeline (`etl.post_stages`), so `meds-extract-run spec=AUMCdb` enriches the finished
+`metadata/codes.parquet` in place, and it stays valid MEDS code metadata. `--rules AUMCdb` works for
+any suMEDS command. By default the LOINC data comes from suMEDS's ontology packs, fetched from GitHub
+on first use and cached; no Athena download is needed.
+
+Whether a build was enriched is recorded in `metadata/dataset.json`, under
+`sumeds_enrichment.enriched`, with the rules, the suMEDS version and the coverage. Enrichment is on
+by default, and a failed enrichment (for example, on a server without internet access) does not fail
+the ETL: `metadata/codes.parquet` is left as the ETL wrote it, `dataset.json` records
+`"enriched": false` with the error, and the exit code is still 0. The warning, with the command that
+finishes the enrichment, is in `$MEDS_DIR/.logs/pipeline.log`. Running `meds-extract-run` again does
+not retry it (the stage is marked done); enrich the build afterwards, with the same rules and
+options, with:
 
 ```bash
-uvx --from "sumeds>=0.4" suMEDS-enrich \
-    $MEDS_DIR/metadata/codes.parquet -o codes-enriched.parquet \
-    --rules src/AUMCdb_MEDS/sumeds_rules.yaml
+suMEDS-enrich $MEDS_DIR
+# Without internet access, from a copy of the sumeds-ontologies packs directory:
+suMEDS-enrich $MEDS_DIR --ontology-source /path/to/sumeds-ontologies/ontologies --offline
 ```
 
-One ontology rule, `aumcdb-gender`, tags `GENDER//Man` and `GENDER//Vrouw` with the OMOP Gender
-concepts `Gender//M` and `Gender//F`, as in AmsterdamUMC's own OMOP dictionary. suMEDS has no
-Gender pack, so the codes are tagged, or validated when your OHDSI Athena download
-(`--athena-csv`) has the Gender vocabulary. The ETL alone does not emit these parents; the LOINC,
-ATC and SNOMED CT parents of item codes come from AmsterdamUMC's dictionary and stay in the ETL.
-The file has no hierarchy rules: no code is a coarser version of another code of the data (a list
-item, `MEASURE//{item}//{islabresult}//{value}`, could only nest under a free-text item of the same
-name, and none shares one). `tests/test_sumeds_rules.py` loads the file with suMEDS and checks
-that the rule matches exactly the gender codes the config builds.
+The stage's options are set at run time through `overrides=`, with `++` because the overrides reach
+every stage of the pipeline:
+
+```bash
+# Without enrichment:
+meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR skip_stages=[sumeds_enrich]
+# Make a failed enrichment fail the run (exit code 1):
+meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR "overrides=['++stage_cfg.strict=true']"
+# Also look codes up in your own OHDSI Athena download:
+meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR "overrides=['++stage_cfg.athena_csv=/path/to/athena']"
+# Add the LOINC Parts above each LOINC code as parents:
+meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR "overrides=['++stage_cfg.loinc_hierarchy=true']"
+```
+
+On a cluster whose compute nodes have no internet access, fill a cache on shared storage once from a
+login node, then run offline on the compute nodes with the same cache:
+
+```bash
+export XDG_CACHE_HOME=/shared/project/cache
+# On a login node:
+suMEDS-enrich --prefetch --rules AUMCdb
+# On a compute node:
+meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR "overrides=['++stage_cfg.offline=true']"
+```
+
+For AmsterdamUMCdb, enrichment adds:
+
+- **Gender.** One ontology rule, `aumcdb-gender`, tags `GENDER//Man` and `GENDER//Vrouw` with the
+    OMOP Gender concepts `Gender//M` and `Gender//F` as parent codes, as in AmsterdamUMC's own OMOP
+    dictionary. suMEDS has no Gender pack, so the codes are only tagged, or validated (with the
+    concept's name and OMOP fields) when your Athena download (`--athena-csv`) has the Gender
+    vocabulary. The ETL alone does not emit these parents.
+- **The dictionary's LOINC codes.** The LOINC, ATC and SNOMED CT parents of item codes come from
+    AmsterdamUMC's dictionary and stay in the ETL. suMEDS looks the LOINC ones up in its LOINC pack:
+    the item code gets `vocabulary_id` and `concept_code`, and the parent gets its LOINC name in
+    `parent_names`. With `loinc_hierarchy` (above), the LOINC Parts above it are added as parents too.
+    suMEDS hosts no ATC or SNOMED CT data, so those parents are named, and get their ancestors, only
+    from your Athena download.
+
+Descriptions and the ETL's parent codes are never changed; new parents are appended after them.
+`parent_names` maps each named parent code to its name (a Parquet `map<string, string>`, read as a
+`pl.Map` by Polars 2 and as a list of `key`/`value` structs by Polars 1). The file has no hierarchy
+rules: no code is a coarser version of another code of the data (a list item,
+`MEASURE//{item}//{islabresult}//{value}`, could only nest under a free-text item of the same name,
+and none shares one). `tests/test_sumeds_rules.py` loads the file by its registered name and checks
+that the rule matches exactly the gender codes the config builds, and
+`tests/test_run_with_enrichment.py` runs `meds-extract-run spec=AUMCdb` on synthetic data, offline.
+The same rules work with `suMEDS … --rules AUMCdb` to build a privacy-masked code catalog of the
+output.
 
 ## Testing with synthetic data
 
-You can run the whole ETL without access to AmsterdamUMCdb.
-[MESSY_synth](https://github.com/mmcdermott/MESSY_synth) reads the config, works out what the raw
-tables must look like, and writes fake source files with the right shape. CI does this on every
-pull request (see [`.github/workflows/synthetic-etl.yaml`](.github/workflows/synthetic-etl.yaml)):
+You can run the whole ETL without access to AmsterdamUMCdb. The test suite writes a tiny, entirely
+synthetic dataset with the column layout and encodings of the v1.0.2 files and a small item
+dictionary in the published format ([`tests/conftest.py`](tests/conftest.py)), runs
+`meds-extract-run spec=AUMCdb skip_stages=[sumeds_enrich]` over it and checks that every event's codes
+are described, that the non-ASCII names survive both encodings, and that `codes.parquet` validates
+against the MEDS code-metadata schema. It then runs `meds-extract-run spec=AUMCdb`, with the
+enrichment, over the same data against a tiny synthetic LOINC pack, offline, and checks that the
+enrichment adds the gender and LOINC information without changing anything the ETL wrote, that
+`metadata/dataset.json` records it, that a failed enrichment keeps the plain output and can be
+retried, and that skipping the stage gives the plain ETL. CI does this on every pull request (see
+[`.github/workflows/synthetic-etl.yaml`](.github/workflows/synthetic-etl.yaml)):
 
 ```bash
-pip install AUMCdb_MEDS MESSY-synth # MESSY-synth needs Python >= 3.12
-MESSY-synth AUMCdb -o raw_synthetic/ --explain
-meds-extract-run spec=AUMCdb output_dir=meds_synthetic/ do_download=false input_dir=raw_synthetic/
+pip install -e .[dev]
+pytest tests
 ```
 
-Every generated value is visibly fake, so the output is only useful for checking that the
-pipeline runs end to end and that every event still produces rows. MESSY-synth's placeholder
-dictionary matches no table, so its item codes stay undescribed; `pytest tests` (also run in CI)
-rebuilds with a small fixture dictionary and checks that every event's codes are described and that
-`codes.parquet` validates against the MEDS code-metadata schema.
+Every value is visibly fake, so the output is only useful for checking that the pipeline runs end
+to end. [MESSY_synth](https://github.com/mmcdermott/MESSY_synth), which generated the synthetic
+data before, still pins `MEDS-extract<0.8` and cannot read this config.
 
 ## Summary statistics
 
 [`tests/regression/full_summary_stats.json`](tests/regression/full_summary_stats.json) is a
 [meds_summary_stats](https://github.com/Medical-Event-Data-Standard/meds_summary_stats) fingerprint of
-the MEDS dataset this ETL builds from the full AmsterdamUMCdb 1.0.2 release: subject, event and measurement
-counts, digests of the code vocabulary, per-subject, value and time distributions, code-metadata
-coverage, the splits and the schema. It names no code and reports no cell of fewer than 20 subjects and
+the MEDS dataset this ETL builds from the full AmsterdamUMCdb 1.0.2 release.
+`scripts/summary_stats.sh` builds it with `meds-extract-run spec=AUMCdb`, so its code-metadata coverage
+includes the suMEDS enrichment. It covers subject, event and measurement counts, digests of the code
+vocabulary, per-subject, value and time distributions, code-metadata coverage, the splits and the
+schema. It names no code and reports no cell of fewer than 20 subjects and
 no minimum or maximum, which is what makes it safe to publish. Because it is committed next to the ETL,
 its diff shows what an ETL change did to the output, and two ETL versions can be compared without
 access to the data.
@@ -234,8 +318,8 @@ Both print how the statistics changed against the committed baseline before over
 [`tests/regression/policy.yaml`](tests/regression/policy.yaml) flags an error. Rebuilding the same
 commit reproduces the baseline exactly, so any finding is a change in the output. CI cannot rebuild the
 credentialed release, so the [Summary stats workflow](.github/workflows/summary-stats.yaml) only warns
-when a pull request changes `src/` without regenerating the baseline. A MEDS-Extract or polars upgrade
-can also move the output, so check it with `--compare`.
+when a pull request changes `src/` (the config or the suMEDS rules) without regenerating the baseline.
+A MEDS-Extract, suMEDS or polars upgrade can also move the output, so check it with `--compare`.
 
 ## Contributing
 

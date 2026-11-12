@@ -3,11 +3,12 @@
 #
 # The ETL keeps what AmsterdamUMCdb owns: descriptions, and the LOINC, ATC and SNOMED CT parents of
 # the item codes taken from AmsterdamUMC's own item dictionary. External-ontology tagging that the
-# dataset does not carry is left to suMEDS. Run it with this file over `metadata/codes.parquet`
-# (README section "Enriching code metadata with suMEDS"):
+# dataset does not carry is left to suMEDS. The package registers this file in suMEDS's
+# `sumeds.rules` entry-point group as `AUMCdb`, the name of its MEDS-Extract spec, and the spec's
+# `sumeds_enrich` post-stage applies it at the end of `meds-extract-run spec=AUMCdb`. An existing
+# build is enriched with (README section "Enriching code metadata with suMEDS"):
 #
-#   suMEDS-enrich $MEDS_DIR/metadata/codes.parquet -o codes-enriched.parquet \
-#     --rules src/AUMCdb_MEDS/sumeds_rules.yaml
+#   suMEDS-enrich $MEDS_DIR --rules AUMCdb
 #
 # No hierarchy rules: no AmsterdamUMCdb code is a coarser version of another code of the data. The
 # only layouts that could nest, a list item (`MEASURE//{item}//{islabresult}//{value}`) under a

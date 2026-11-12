@@ -1,39 +1,24 @@
-"""Code metadata: every event describes its codes, the public dictionary is pinned, and a synthetic
-build writes valid, described MEDS code metadata."""
+"""Code metadata: every event describes its codes, the public dictionary is pinned, the sources are
+decoded with their declared encodings, and a synthetic build writes valid, described MEDS code
+metadata."""
 
-import csv
-import os
 import re
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import polars as pl
 import pyarrow.parquet as pq
-import pytest
 import yaml
+from conftest import DICTIONARY_COLUMNS
 from meds import CodeMetadataSchema
 
-from AUMCdb_MEDS import MESSY_CFG, PIPELINE_NAME
+from AUMCdb_MEDS import MESSY_CFG
 
 CFG = yaml.safe_load(MESSY_CFG.read_text())
 NOT_TABLES = {"sources", "etl", "_defaults"}
 DICTIONARY_PREFIX = "dictionary"
-# Header of amsterdamumcdb/dictionary/legacy/dictionary.csv at the commit pinned in `sources.common`.
-DICTIONARY_COLUMNS = {
-    "itemid", "item", "item_en", "vocabulary_id", "vocabulary_concept_code", "vocabulary_concept_name",
-    "abbreviation", "categoryid", "category", "category_en", "ordercategoryid", "ordercategory",
-    "islabresult", "valueid", "value", "unitid", "unit", "ucum_code", "low_normal_value",
-    "high_normal_value", "expected_min_value", "expected_max_value", "table", "count", "count_validated",
-}  # fmt: skip
 # Parents the ETL emits: only the dictionary's own item-level codes. Other vocabulary tagging
 # (e.g. OMOP Gender) is left to suMEDS (`sumeds_rules.yaml`, tests/test_sumeds_rules.py).
 OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)/\S+$")
-# The CLIs live next to the interpreter; the pipeline also spawns its stage CLI through PATH.
-ENV = os.environ | {
-    "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}"
-}
 
 
 def _events():
@@ -76,9 +61,9 @@ def test_dictionary_blocks_are_scoped_to_their_table():
         n_blocks += 1
         assert block["item"] == "$item", f"{table}/{name}"
         referenced = set(re.findall(r"\$(\w+)", " ".join(map(str, block.values()))))
-        assert referenced <= DICTIONARY_COLUMNS, (
+        assert referenced <= set(DICTIONARY_COLUMNS), (
             f"{table}/{name}",
-            referenced - DICTIONARY_COLUMNS,
+            referenced - set(DICTIONARY_COLUMNS),
         )
         for out in ("description", "parent_codes"):
             assert block[out].endswith(f'if $table == "{table}"'), (
@@ -98,73 +83,36 @@ def test_only_dictionary_blocks_add_parent_codes():
     assert not with_parents, with_parents
 
 
-def _write_fixture_dictionary(raw_dir: Path) -> None:
-    """Replace MESSY-synth's dictionary by a fixture in the published format.
+def test_every_source_declares_its_encoding():
+    """MEDS-Extract >= 0.8 decodes event and `_metadata` csv sources with `etl.encoding`, and
+    detects the codec of any source it does not list. Every source is declared: the data tables
+    as Windows-1252, the dictionary as UTF-8."""
+    encoding = CFG["etl"]["encoding"]
+    tables = {table for table in CFG if table not in NOT_TABLES}
+    assert set(encoding) == tables | {DICTIONARY_PREFIX}
+    assert {encoding[table] for table in tables} == {"cp1252"}
+    assert encoding[DICTIONARY_PREFIX] == "utf8"
 
-    MESSY-synth fills `table` with placeholders that match no table, so no item code would be
-    described. The fixture gives each synthetic item exactly one table (an item name belongs to one
-    table in AmsterdamUMCdb too), and alternates English names and vocabulary codes. It is written
-    like the published file: UTF-8 with a byte-order mark, every column text.
-    """
-    items = sorted(
-        pl.read_parquet(raw_dir / f"{DICTIONARY_PREFIX}.parquet")["item"]
-        .drop_nulls()
-        .unique()
+
+def test_sources_are_decoded_with_their_declared_encodings(codes: pl.DataFrame):
+    """Non-ASCII item names, units and values of the cp1252 tables survive, and the UTF-8
+    dictionary (with its byte-order mark) still joins on them and keeps its own non-ASCII text."""
+    rows = {row["code"]: row for row in codes.to_dicts()}
+    assert {
+        "MEASURE//Synthetische temperatuur//°C",
+        "MEASURE//Synthetisch bewustzijn//0//Geïrriteerd",
+        "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg",
+    } <= set(rows)
+    weight = rows["MEASURE//Patiëntgewicht//kg"]
+    assert weight["description"].startswith(
+        "patient weight (synthetic) (Patiëntgewicht): "
     )
-    (raw_dir / f"{DICTIONARY_PREFIX}.parquet").unlink()
-    tables = [
-        "numericitems",
-        "listitems",
-        "freetextitems",
-        "procedureorderitems",
-        "processitems",
-        "drugitems",
-    ]
-    vocab = [
-        ("LOINC", "718-7"),
-        ("SNOMED CT", "271649006"),
-        ("ATC", "B05XA05"),
-        ("", ""),
-    ]
-    with open(
-        raw_dir / f"{DICTIONARY_PREFIX}.csv", "w", encoding="utf-8-sig", newline=""
-    ) as f:
-        writer = csv.DictWriter(f, fieldnames=sorted(DICTIONARY_COLUMNS))
-        writer.writeheader()
-        for i, item in enumerate(items):
-            vocabulary_id, vocabulary_code = vocab[i % len(vocab)]
-            writer.writerow(
-                {c: "" for c in DICTIONARY_COLUMNS}
-                | {
-                    "itemid": str(1000 + i),
-                    "item": item,
-                    "item_en": f"english name {i}" if i % 2 == 0 else "",
-                    "category": f"category {i}",
-                    "table": tables[i % len(tables)],
-                    "vocabulary_id": vocabulary_id,
-                    "vocabulary_concept_code": vocabulary_code,
-                }
-            )
+    assert "itemid 9003, category Synthetische metingen µ°)" in weight["description"]
+    assert weight["parent_codes"] == ["LOINC/29463-7"]
 
 
-@pytest.mark.skipif(
-    shutil.which("MESSY-synth", path=ENV["PATH"]) is None, reason="needs MESSY-synth"
-)
-def test_synthetic_build_writes_described_valid_code_metadata(tmp_path):
-    raw_dir, out_dir = tmp_path / "raw", tmp_path / "meds"
-    subprocess.run(
-        ["MESSY-synth", PIPELINE_NAME, "-o", str(raw_dir), "-q"], check=True, env=ENV
-    )
-    _write_fixture_dictionary(raw_dir)
-    run = [
-        "meds-extract-run",
-        f"spec={PIPELINE_NAME}",
-        f"output_dir={out_dir}",
-        f"input_dir={raw_dir}",
-    ]
-    subprocess.run([*run, "do_download=false"], check=True, env=ENV)
-
-    table = pq.read_table(out_dir / "metadata" / "codes.parquet")
+def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path):
+    table = pq.read_table(meds_output / "metadata" / "codes.parquet")
     CodeMetadataSchema.validate(
         table
     )  # as read from disk: string / list<string>, not large_string

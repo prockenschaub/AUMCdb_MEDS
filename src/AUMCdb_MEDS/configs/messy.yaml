@@ -1,10 +1,13 @@
-# MESSY config for the AmsterdamUMCdb MEDS ETL (MEDS-Extract >= 0.7.1).
+# MESSY config for the AmsterdamUMCdb MEDS ETL (MEDS-Extract >= 0.8).
 #
 # This is the WHOLE ETL. There is no Python in this package -- `sources:` fetches and unpacks the
 # raw data, `etl:` carries the run options, and the event tables below do the conversion,
 # including everything the old `pre_MEDS.py` used to do in polars.
 #
 #   meds-extract-run spec=AUMCdb output_dir=$OUTPUT_DIR
+#
+# which also enriches the code metadata with the suMEDS rules this package registers
+# (`sumeds_rules.yaml`), in the `sumeds_enrich` post-stage declared under `etl:`.
 #
 # ---------------------------------------------------------------------------
 # HOW THE PSEUDO-TIMESTAMPS WORK
@@ -61,8 +64,32 @@ sources:
 etl:
   dataset_name: AUMCdb
   n_subjects_per_shard: 1000
-  # 6 of 7 source CSVs are Windows-1252 (only admissions.csv is plain ASCII).
-  encoding: cp1252
+  # Source encodings, per source prefix. 6 of the 7 data CSVs are Windows-1252 (only admissions.csv
+  # is plain ASCII, which cp1252 reads the same), while the item dictionary is UTF-8 with a
+  # byte-order mark. MEDS-Extract >= 0.8 decodes `_metadata` sources with `etl.encoding` too, so a
+  # single `encoding: cp1252` would garble the dictionary's header and its non-ASCII names. Every
+  # source is declared rather than left to `auto` detection, which would read each file twice and
+  # stop on cp1252 text that happens to form a valid UTF-8 byte sequence.
+  encoding:
+    admissions: cp1252
+    numericitems: cp1252
+    listitems: cp1252
+    freetextitems: cp1252
+    procedureorderitems: cp1252
+    processitems: cp1252
+    drugitems: cp1252
+    dictionary: utf8
+  # Written to metadata/dataset.json: the dataset's DANS DataVerse page. No `license`: the page
+  # lists the DANS Licence, and access also requires AmsterdamUMCdb's own end user license
+  # agreement, so neither name alone describes the terms.
+  description_uri: https://doi.org/10.17026/dans-22u-f8vd
+  # After the canonical pipeline, suMEDS (a dependency of this package) enriches
+  # metadata/codes.parquet with the rules registered as AUMCdb and records it in
+  # metadata/dataset.json. A failed enrichment (e.g. without internet access) keeps codes.parquet as
+  # the ETL wrote it and does not fail the run; `suMEDS-enrich OUTPUT_DIR` finishes it later.
+  # `skip_stages=[sumeds_enrich]` leaves it out of a run.
+  post_stages:
+    - sumeds_enrich: { rules: AUMCdb }
 
 _defaults:
   subject_id: $patientid
@@ -175,7 +202,7 @@ admissions:
 
 # ---------------------------------------------------------------------------
 # Every other table keys on `admissionid` only, so each joins `admissions` for the subject id and
-# the year group, then rebuilds `_origin` locally. (`_table.join` reads the raw source file, so it
+# the year group, then rebuilds `_origin` locally. (`_table.joins` reads the raw source file, so it
 # cannot see another table's derived columns -- hence the small repetition.)
 #
 # `measuredat == -1899` rows are dropped, as before: the old pre-MEDS filtered them out because
@@ -195,7 +222,7 @@ admissions:
 
 numericitems:
   _table:
-    join:
+    joins:
       admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
@@ -218,7 +245,7 @@ numericitems:
 
 listitems:
   _table:
-    join:
+    joins:
       admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
@@ -240,7 +267,7 @@ listitems:
 
 freetextitems:
   _table:
-    join:
+    joins:
       admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
@@ -263,7 +290,7 @@ freetextitems:
 
 procedureorderitems:
   _table:
-    join:
+    joins:
       admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
@@ -285,7 +312,7 @@ procedureorderitems:
 
 processitems:
   _table:
-    join:
+    joins:
       admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
@@ -322,7 +349,7 @@ processitems:
 
 drugitems:
   _table:
-    join:
+    joins:
       admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
