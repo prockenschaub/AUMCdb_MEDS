@@ -145,3 +145,34 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
         assert described.str.contains(f"AmsterdamUMCdb {table_name} itemid").all(), (
             f"{table_name}/{name}"
         )
+
+
+def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
+    """Every code with a numeric value gets the unit of its own rows as `unit` metadata: the same
+    raw value as the code's last component, so the codes themselves are unchanged."""
+    # MEDS-Extract writes extra metadata columns as List(String).
+    assert codes.schema["unit"] == pl.List(pl.String)
+    units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
+    assert units["MEASURE//Synthetische temperatuur//°C"] == ["°C"]
+    assert units["MEASURE//Synthetische hartslag///min"] == ["/min"]
+    assert units["DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg"] == [
+        "µg"
+    ]
+    assert units["DRUG//RATE//Synthetische infusen//Synthetisch infuus//ml/uur"] == [
+        "ml/uur"
+    ]
+    numeric = codes.filter(
+        pl.col("code").str.starts_with("DRUG//RATE//")
+        | pl.col("code").str.starts_with("DRUG//DOSE//")
+        | pl.col("code_template").str.contains("units", literal=True)
+    )
+    assert numeric.height == 8
+    for code, unit in zip(numeric["code"], numeric["unit"].to_list(), strict=True):
+        assert len(unit) == 1 and code.endswith(f"//{unit[0]}"), code
+    # Codes without a numeric value have no unit.
+    assert units["MEASURE//Synthetisch bewustzijn//0//Alert"] is None
+    assert (
+        units["DRUG//START//Synthetische injecties//Synthetisch vaatmiddel//Nieuwe zak"]
+        is None
+    )
+    assert units["MEDS_BIRTH"] is None

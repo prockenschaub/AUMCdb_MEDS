@@ -190,6 +190,12 @@ warehouse); the vocabulary's own text is left to vocabulary tooling such as suME
 0.4 makes `description` optional, so consumers must still not rely on it for datasets built with
 older releases.
 
+**Units.** Codes with a numeric value also carry a `unit` column (List(String), as MEDS-Extract
+writes extra metadata): `MEASURE//{item}//{unit}` the `numericitems.unit` of its rows,
+`DRUG//RATE//…` the `rateunit` and `DRUG//DOSE//…` the `doseunit` (`_metadata: _self:` blocks).
+It is the same raw value as the code's last component, as recorded, so tools can read the unit
+without parsing the code; the codes are unchanged, and a code ending in `UNK` has no unit.
+
 ### Enriching code metadata with suMEDS
 
 Vocabulary tagging that AmsterdamUMCdb does not carry itself lives in
