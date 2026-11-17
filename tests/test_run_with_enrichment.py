@@ -222,7 +222,10 @@ def test_loinc_parent_references_are_identified_and_named(enriched_codes: pl.Dat
         ("MEASURE//Synthetisch natrium//mmol/l", ["LOINC/2951-2"]),
         (
             "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg",
-            ["ATC/C01CA03", "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel"],
+            [
+                "ATC/C01CA03",
+                "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel",
+            ],
         ),
         ("PROCESS//START//Synthetische lijn", ["SNOMED/392230005"]),
     ]:

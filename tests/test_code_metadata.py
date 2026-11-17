@@ -126,7 +126,9 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
     # Besides vocabulary references, the only parents are in-dataset: the code without the unit,
     # given to codes that differ only in their unit (test_unit_siblings_get_their_stem_as_parent_and_row).
     in_dataset = parents.is_in(codes["code"].implode())
-    assert parents.filter(~in_dataset).str.contains(OMOP_PARENT.pattern).all(), parents.to_list()
+    assert parents.filter(~in_dataset).str.contains(OMOP_PARENT.pattern).all(), (
+        parents.to_list()
+    )
     assert parents.filter(in_dataset).unique().to_list() == [
         "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel"
     ]
@@ -161,8 +163,13 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
     units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
     assert units["MEASURE//Synthetische temperatuur//°C"] == "°C"
     assert units["MEASURE//Synthetische hartslag///min"] == "/min"
-    assert units["DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg"] == "µg"
-    assert units["DRUG//RATE//Synthetische infusen//Synthetisch infuus//ml/uur"] == "ml/uur"
+    assert (
+        units["DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg"] == "µg"
+    )
+    assert (
+        units["DRUG//RATE//Synthetische infusen//Synthetisch infuus//ml/uur"]
+        == "ml/uur"
+    )
     numeric = codes.filter(
         (
             pl.col("code").str.starts_with("DRUG//RATE//")

@@ -72,7 +72,11 @@ def collapse_units(unit: pl.Series, code: pl.Series) -> pl.Series:
         .group_by("row", maintain_order=True)
         .agg(pl.col("unit").unique(maintain_order=True))
     )
-    unit = pl.DataFrame({"row": range(unit.len())}).join(values, on="row", how="left").sort("row")["unit"]
+    unit = (
+        pl.DataFrame({"row": range(unit.len())})
+        .join(values, on="row", how="left")
+        .sort("row")["unit"]
+    )
     several = code.filter((unit.list.len() > 1).fill_null(False))
     if several.len():
         raise ValueError(
@@ -96,12 +100,16 @@ def unit_sibling_stems(code: pl.Series, unit: pl.Series) -> pl.Series:
         >>> unit_sibling_stems(code, unit).to_list()
         ['X//a', 'X//a', None, None, None, None]
     """
-    frame = pl.DataFrame({"code": code, "unit": unit}, schema={"code": pl.String, "unit": pl.String})
+    frame = pl.DataFrame(
+        {"code": code, "unit": unit}, schema={"code": pl.String, "unit": pl.String}
+    )
     suffixed = pl.col("unit").is_not_null() & pl.col("code").str.ends_with(
         pl.concat_str(pl.lit("//"), pl.col("unit"))
     )
     stem = pl.when(suffixed).then(
-        pl.col("code").str.slice(0, pl.col("code").str.len_chars() - pl.col("unit").str.len_chars() - 2)
+        pl.col("code").str.slice(
+            0, pl.col("code").str.len_chars() - pl.col("unit").str.len_chars() - 2
+        )
     )
     stems = frame.select(stem.alias("stem"))["stem"]
     stems = stems.set(stems == "", None)
@@ -131,7 +139,9 @@ def unit_sibling_parents(codes: pl.DataFrame) -> pl.DataFrame:
     if stems.is_null().all():
         return codes
     if "parent_codes" not in codes.columns:
-        codes = codes.with_columns(pl.lit(None, dtype=pl.List(pl.String)).alias("parent_codes"))
+        codes = codes.with_columns(
+            pl.lit(None, dtype=pl.List(pl.String)).alias("parent_codes")
+        )
     parents = pl.col("parent_codes")
     stem = pl.col("_stem")
     add = stem.is_not_null() & ~parents.list.contains(stem).fill_null(False)
@@ -139,7 +149,10 @@ def unit_sibling_parents(codes: pl.DataFrame) -> pl.DataFrame:
     return (
         codes.with_columns(stems.alias("_stem"))
         .with_columns(
-            pl.when(add).then(pl.concat_list(parents.fill_null(empty), stem)).otherwise(parents).alias("parent_codes")
+            pl.when(add)
+            .then(pl.concat_list(parents.fill_null(empty), stem))
+            .otherwise(parents)
+            .alias("parent_codes")
         )
         .drop("_stem")
     )
@@ -162,7 +175,12 @@ def without_unit(description: str | None, unit: str | None) -> str | None:
     if not description or not unit:
         return None
     escaped = re.escape(unit)
-    matches = list(re.finditer(rf"\s*(?:\[\s*{escaped}\s*\]|\(\s*{escaped}\s*\)|(?<!\w){escaped}(?!\w))", description))
+    matches = list(
+        re.finditer(
+            rf"\s*(?:\[\s*{escaped}\s*\]|\(\s*{escaped}\s*\)|(?<!\w){escaped}(?!\w))",
+            description,
+        )
+    )
     if not matches:
         return None
     span = matches[-1]
@@ -174,7 +192,9 @@ def _shared_description(siblings: list[dict]) -> str | None:
     descriptions = {sibling["description"] for sibling in siblings}
     if len(descriptions) == 1:
         return descriptions.pop()
-    stripped = {without_unit(sibling["description"], sibling["unit"]) for sibling in siblings}
+    stripped = {
+        without_unit(sibling["description"], sibling["unit"]) for sibling in siblings
+    }
     if len(stripped) == 1 and (description := stripped.pop()):
         return description
     return None
@@ -264,17 +284,25 @@ def collapse_unit_metadata(codes_fp: Path) -> UnitSummary:
     table = pq.read_table(codes_fp)
     if "unit" not in table.column_names:
         return UnitSummary(0, 0, 0, 0)
+
     # Through Python objects: codes.parquet is vocabulary-sized, and some polars versions panic on
     # Arrow large types read back from parquet.
     def column(name: str, dtype: pl.DataType) -> pl.Series:
         return pl.Series(name, table[name].to_pylist(), dtype=dtype)
 
-    is_string = pa.types.is_string(table.schema.field("unit").type) or pa.types.is_large_string(
+    is_string = pa.types.is_string(
         table.schema.field("unit").type
+    ) or pa.types.is_large_string(table.schema.field("unit").type)
+    frame = pl.DataFrame(
+        [
+            column("code", pl.String),
+            column("unit", pl.String if is_string else pl.List(pl.String)),
+        ]
     )
-    frame = pl.DataFrame([column("code", pl.String), column("unit", pl.String if is_string else pl.List(pl.String))])
     if not is_string:
-        frame = frame.with_columns(collapse_units(frame["unit"], frame["code"]).alias("unit"))
+        frame = frame.with_columns(
+            collapse_units(frame["unit"], frame["code"]).alias("unit")
+        )
     if "description" in table.column_names:
         frame = frame.with_columns(column("description", pl.String))
     if "parent_codes" in table.column_names:
@@ -311,14 +339,24 @@ def collapse_unit_metadata(codes_fp: Path) -> UnitSummary:
         return summary
     if stem_rows:
         was_sorted = frame["code"].is_sorted()
-        out = pa.concat_tables([out, pa.Table.from_pylist(stem_rows, schema=out.schema)])
+        out = pa.concat_tables(
+            [out, pa.Table.from_pylist(stem_rows, schema=out.schema)]
+        )
         if was_sorted:
             out = out.sort_by("code")
     # Validated as MEDS code metadata; files written by polars (tests) hold large types, which
     # the schema rejects, so only the check sees its MEDS columns cast.
-    meds_types = {"code": pa.string(), "description": pa.string(), "parent_codes": pa.list_(pa.string())}
+    meds_types = {
+        "code": pa.string(),
+        "description": pa.string(),
+        "parent_codes": pa.list_(pa.string()),
+    }
     CodeMetadataSchema.validate(
-        out.cast(pa.schema([pa.field(f.name, meds_types.get(f.name, f.type)) for f in out.schema]))
+        out.cast(
+            pa.schema(
+                [pa.field(f.name, meds_types.get(f.name, f.type)) for f in out.schema]
+            )
+        )
     )
     tmp_fp = codes_fp.with_suffix(".parquet.tmp")
     pq.write_table(out, tmp_fp)

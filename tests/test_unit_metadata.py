@@ -48,7 +48,10 @@ def test_several_units_are_an_error_and_nothing_is_written(tmp_path):
     fp = tmp_path / "codes.parquet"
     _write(fp, ["C0", "C1", "C2"], [["mg/dL", "mmol/L"], ["%"], ["ml", " mL"]])
     before = fp.read_bytes()
-    with pytest.raises(ValueError, match=r"^2 codes have more than one unit, e\.g\. \['C0', 'C2'\]\..*in the code"):
+    with pytest.raises(
+        ValueError,
+        match=r"^2 codes have more than one unit, e\.g\. \['C0', 'C2'\]\..*in the code",
+    ):
         collapse_unit_metadata(fp)
     assert fp.read_bytes() == before
 
@@ -82,7 +85,16 @@ def test_unit_siblings_get_the_code_without_the_unit_as_parent(tmp_path):
     ]
     units = [["mcg"], ["mg"], ["ml"], ["mg"], ["mg/dL"], ["mg/dL"], ["%"], None]
     parents = pl.Series(
-        [["ATC//N02", "ATC//N"], ["ATC//N"], ["DRUG//a", "ATC//N"], None, None, None, None, None],
+        [
+            ["ATC//N02", "ATC//N"],
+            ["ATC//N"],
+            ["DRUG//a", "ATC//N"],
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
         dtype=pl.List(pl.String),
     )
     _write(fp, codes, units, parent_codes=parents)
@@ -98,7 +110,9 @@ def test_unit_siblings_get_the_code_without_the_unit_as_parent(tmp_path):
         "code": "DRUG//a",
         "description": "Drug a",  # shared by every sibling
         "unit": None,
-        "parent_codes": ["ATC//N"],  # the parents every sibling has, not the stem itself
+        "parent_codes": [
+            "ATC//N"
+        ],  # the parents every sibling has, not the stem itself
     }
     assert [by_code[c]["parent_codes"] for c in codes] == [
         ["ATC//N02", "ATC//N", "DRUG//a"],  # existing vocabulary parents kept
@@ -122,31 +136,51 @@ def test_unit_siblings_get_the_code_without_the_unit_as_parent(tmp_path):
 def test_stem_row_without_a_shared_description_or_parents(tmp_path):
     fp = tmp_path / "codes.parquet"
     _write(fp, ["X//a//mg", "X//a//g", "Y"], [["mg"], ["g"], None])
-    pl.read_parquet(fp).with_columns(description=pl.Series(["a in mg", "a, other, in g", None])).write_parquet(fp)
+    pl.read_parquet(fp).with_columns(
+        description=pl.Series(["a in mg", "a, other, in g", None])
+    ).write_parquet(fp)
     assert collapse_unit_metadata(fp) == UnitSummary(2, 1, 2, 1)
     out = pl.read_parquet(fp)
     # The input was not sorted by code, so the stem row is appended.
     assert out["code"].to_list() == ["X//a//mg", "X//a//g", "Y", "X//a"]
     assert out.schema["parent_codes"] == pl.List(pl.String)
     assert out["parent_codes"].to_list() == [["X//a"], ["X//a"], None, None]
-    assert out.row(3, named=True) == {"code": "X//a", "description": None, "unit": None, "parent_codes": None}
+    assert out.row(3, named=True) == {
+        "code": "X//a",
+        "description": None,
+        "unit": None,
+        "parent_codes": None,
+    }
 
 
 def test_existing_stem_row_is_left_unchanged(tmp_path):
     fp = tmp_path / "codes.parquet"
     _write(fp, ["X//a", "X//a//g", "X//a//mg"], [["%"], ["g"], ["mg"]])
-    pl.read_parquet(fp).with_columns(description=pl.Series(["own", "a", "a"])).write_parquet(fp)
+    pl.read_parquet(fp).with_columns(
+        description=pl.Series(["own", "a", "a"])
+    ).write_parquet(fp)
     assert collapse_unit_metadata(fp) == UnitSummary(3, 1, 2, 0)
     out = pl.read_parquet(fp)
-    assert out.row(0, named=True) == {"code": "X//a", "description": "own", "unit": "%", "parent_codes": None}
+    assert out.row(0, named=True) == {
+        "code": "X//a",
+        "description": "own",
+        "unit": "%",
+        "parent_codes": None,
+    }
     assert out["parent_codes"].to_list() == [None, ["X//a"], ["X//a"]]
 
 
 def test_stem_description_without_the_siblings_units(tmp_path):
     fp = tmp_path / "codes.parquet"
-    _write(fp, ["A//x//g", "A//x//mg", "B//y//g", "B//y//mg"], [["g"], ["mg"], ["g"], ["mg"]])
+    _write(
+        fp,
+        ["A//x//g", "A//x//mg", "B//y//g", "B//y//mg"],
+        [["g"], ["mg"], ["g"], ["mg"]],
+    )
     descriptions = ["Dose [g] of x", "Dose [mg] of x", "y in g", "y, other, in mg"]
-    pl.read_parquet(fp).with_columns(description=pl.Series(descriptions)).write_parquet(fp)
+    pl.read_parquet(fp).with_columns(description=pl.Series(descriptions)).write_parquet(
+        fp
+    )
     assert collapse_unit_metadata(fp) == UnitSummary(4, 2, 4, 2)
     out = dict(pl.read_parquet(fp).select("code", "description").iter_rows())
     # They differ only by their own unit: the stem gets the description without it.
@@ -162,7 +196,9 @@ def test_other_columns_keep_their_arrow_types(tmp_path):
         {
             "code": pa.array(["X//a//mg", "X//a//g"], pa.string()),
             "description": pa.array(["a", "a"], pa.string()),
-            "parent_codes": pa.array([["ATC//N02"], ["ATC//N02"]], pa.list_(pa.string())),
+            "parent_codes": pa.array(
+                [["ATC//N02"], ["ATC//N02"]], pa.list_(pa.string())
+            ),
             "code_template": pa.array(["t", "t"], pa.string()),
             "parent_names": pa.array([[("ATC//N02", "n")], [("ATC//N02", "n")]], names),
             "unit": pa.array([["mg"], ["g"]], pa.list_(pa.string())),
@@ -171,10 +207,18 @@ def test_other_columns_keep_their_arrow_types(tmp_path):
     pq.write_table(table, fp)
     assert collapse_unit_metadata(fp) == UnitSummary(2, 1, 2, 1)
     out = pq.read_table(fp)
-    for name in ("code", "description", "parent_codes", "code_template", "parent_names"):
+    for name in (
+        "code",
+        "description",
+        "parent_codes",
+        "code_template",
+        "parent_names",
+    ):
         assert out.schema.field(name).type == table.schema.field(name).type, name
     assert out.schema.field("unit").type == pa.large_string()
     rows = {row["code"]: row for row in out.to_pylist()}
     assert rows["X//a"]["parent_codes"] == ["ATC//N02"]
-    assert rows["X//a"]["parent_names"] is None and rows["X//a"]["code_template"] is None
+    assert (
+        rows["X//a"]["parent_names"] is None and rows["X//a"]["code_template"] is None
+    )
     assert rows["X//a//mg"]["parent_names"] == [("ATC//N02", "n")]
