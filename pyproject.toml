@@ -54,6 +54,11 @@ AUMCdb = "AUMCdb_MEDS.configs:messy.yaml"
 
 # Registers the suMEDS rules under the same name, so the config's `sumeds_enrich: {rules: AUMCdb}`
 # and `--rules AUMCdb` find them.
+# The post-stage that makes `unit` in codes.parquet one string per code (and links codes that
+# differ only in their unit), so the config can declare it in `etl.post_stages`.
+[project.entry-points."MEDS_transforms.stages"]
+aumcdb_collapse_unit_metadata = "AUMCdb_MEDS.unit_metadata:main"
+
 [project.entry-points."sumeds.rules"]
 AUMCdb = "AUMCdb_MEDS:sumeds_rules.yaml"
 

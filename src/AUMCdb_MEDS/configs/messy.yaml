@@ -88,7 +88,14 @@ etl:
   # metadata/dataset.json. A failed enrichment (e.g. without internet access) keeps codes.parquet as
   # the ETL wrote it and does not fail the run; `suMEDS-enrich OUTPUT_DIR` finishes it later.
   # `skip_stages=[sumeds_enrich]` leaves it out of a run.
+  #
+  # Before it, `aumcdb_collapse_unit_metadata` (src/AUMCdb_MEDS/unit_metadata.py) turns the `unit`
+  # list MEDS-Extract writes into one string per code (failing if any code has more than one unit),
+  # gives codes that differ only in their unit the code without the unit as parent, and adds a row
+  # for that parent code. It runs first so that the enrichment, also a later `suMEDS-enrich`, sees
+  # the finished code list.
   post_stages:
+    - aumcdb_collapse_unit_metadata
     - sumeds_enrich: { rules: AUMCdb }
 
 _defaults:

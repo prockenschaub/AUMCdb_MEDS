@@ -123,7 +123,13 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
     parents = pl.Series(
         [p for ps in codes["parent_codes"].to_list() if ps for p in ps], dtype=pl.String
     )
-    assert parents.str.contains(OMOP_PARENT.pattern).all(), parents.to_list()
+    # Besides vocabulary references, the only parents are in-dataset: the code without the unit,
+    # given to codes that differ only in their unit (test_unit_siblings_get_their_stem_as_parent_and_row).
+    in_dataset = parents.is_in(codes["code"].implode())
+    assert parents.filter(~in_dataset).str.contains(OMOP_PARENT.pattern).all(), parents.to_list()
+    assert parents.filter(in_dataset).unique().to_list() == [
+        "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel"
+    ]
     assert parents.str.starts_with("SNOMED/").any()
 
     # Every admissions code is described from its own components.
@@ -150,25 +156,24 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
 def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
     """Every code with a numeric value gets the unit of its own rows as `unit` metadata: the same
     raw value as the code's last component, so the codes themselves are unchanged."""
-    # MEDS-Extract writes extra metadata columns as List(String).
-    assert codes.schema["unit"] == pl.List(pl.String)
+    # The `aumcdb_collapse_unit_metadata` post-stage turns MEDS-Extract's List(String) into String.
+    assert codes.schema["unit"] == pl.String
     units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
-    assert units["MEASURE//Synthetische temperatuur//°C"] == ["°C"]
-    assert units["MEASURE//Synthetische hartslag///min"] == ["/min"]
-    assert units["DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg"] == [
-        "µg"
-    ]
-    assert units["DRUG//RATE//Synthetische infusen//Synthetisch infuus//ml/uur"] == [
-        "ml/uur"
-    ]
+    assert units["MEASURE//Synthetische temperatuur//°C"] == "°C"
+    assert units["MEASURE//Synthetische hartslag///min"] == "/min"
+    assert units["DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg"] == "µg"
+    assert units["DRUG//RATE//Synthetische infusen//Synthetisch infuus//ml/uur"] == "ml/uur"
     numeric = codes.filter(
-        pl.col("code").str.starts_with("DRUG//RATE//")
-        | pl.col("code").str.starts_with("DRUG//DOSE//")
-        | pl.col("code_template").str.contains("units", literal=True)
+        (
+            pl.col("code").str.starts_with("DRUG//RATE//")
+            | pl.col("code").str.starts_with("DRUG//DOSE//")
+            | pl.col("code_template").str.contains("units", literal=True)
+        )
+        & pl.col("code_template").is_not_null()  # stem rows have no template
     )
-    assert numeric.height == 8
+    assert numeric.height == 9
     for code, unit in zip(numeric["code"], numeric["unit"].to_list(), strict=True):
-        assert len(unit) == 1 and code.endswith(f"//{unit[0]}"), code
+        assert code.endswith(f"//{unit}"), code
     # Codes without a numeric value have no unit.
     assert units["MEASURE//Synthetisch bewustzijn//0//Alert"] is None
     assert (
@@ -176,3 +181,22 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         is None
     )
     assert units["MEDS_BIRTH"] is None
+
+
+def test_unit_siblings_get_their_stem_as_parent_and_row(codes: pl.DataFrame):
+    """Two dose codes of one drug that differ only in their unit share the code without the unit as
+    parent, and that code gets a row: no unit, the description and vocabulary parents they share."""
+    rows = {row["code"]: row for row in codes.iter_rows(named=True)}
+    stem = "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel"
+    siblings = [f"{stem}//µg", f"{stem}//mg"]
+    for code in siblings:
+        assert rows[code]["parent_codes"][-1] == stem, code
+    assert rows[stem]["unit"] is None
+    assert rows[stem]["description"] == rows[siblings[0]]["description"]
+    assert rows[stem]["description"] == rows[siblings[1]]["description"]
+    vocabulary = [p for p in rows[siblings[0]]["parent_codes"] if p != stem]
+    assert (rows[stem]["parent_codes"] or []) == vocabulary
+    # A unit-suffixed code without a sibling gets no stem parent and no stem row.
+    rate = "DRUG//RATE//Synthetische infusen//Synthetisch infuus"
+    assert rate not in rows
+    assert rate not in (rows[f"{rate}//ml/uur"]["parent_codes"] or [])

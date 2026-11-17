@@ -112,6 +112,8 @@ solutionitemid,solutionitem,solutionadministered,solutionadministeredunit,fluidi
 50,ml,1,Nieuwe zak,3600000,7200000,60,,,,,,1
 21,2,2,Synthetische infusen,9502,Synthetisch infuus,0,0,0,ml/uur,1,1,0,500,ml,,2,,500,ml,2,,\
 600000,4200000,60,,,,,,0
+21,3,1,Synthetische injecties,9501,Synthetisch vaatmiddel,0,0,2.5,ml/uur,1,1,0,2,mg,mg/min,3,3,\
+50,ml,1,,7200000,9000000,30,,,,,,1
 """
 
 ITEM_TABLES = {

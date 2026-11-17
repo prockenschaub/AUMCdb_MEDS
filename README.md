@@ -190,11 +190,22 @@ warehouse); the vocabulary's own text is left to vocabulary tooling such as suME
 0.4 makes `description` optional, so consumers must still not rely on it for datasets built with
 older releases.
 
-**Units.** Codes with a numeric value also carry a `unit` column (List(String), as MEDS-Extract
-writes extra metadata): `MEASURE//{item}//{unit}` the `numericitems.unit` of its rows,
-`DRUG//RATE//…` the `rateunit` and `DRUG//DOSE//…` the `doseunit` (`_metadata: _self:` blocks).
-It is the same raw value as the code's last component, as recorded, so tools can read the unit
-without parsing the code; the codes are unchanged, and a code ending in `UNK` has no unit.
+**Units.** Codes with a numeric value also carry a `unit` column: a string, the unit of the code's
+numeric values as recorded, one per code (MEDS does not standardise this column).
+`MEASURE//{item}//{unit}` gets the `numericitems.unit` of its rows, `DRUG//RATE//…` the `rateunit`
+and `DRUG//DOSE//…` the `doseunit` (`_metadata: _self:` blocks). It is the same raw value as the
+code's last component, so tools can read the unit without parsing the code; the codes are
+unchanged, and a code ending in `UNK` has no unit. The dictionary's own `unit` column agrees with
+the data for every numeric item and adds none (no `MEASURE` code lacks a unit; drug items have no
+dictionary unit).
+
+MEDS-Extract writes extracted metadata as a list of the distinct values per code, so the first
+post-stage, `aumcdb_collapse_unit_metadata` (`src/AUMCdb_MEDS/unit_metadata.py`, before suMEDS),
+makes `unit` one string per code and fails if any code has more than one unit. It also gives codes
+that differ only in their unit (`DRUG//DOSE//{category}//{item}//mg` and `…//µg`) the code without
+the unit (`DRUG//DOSE//{category}//{item}`) as an in-dataset parent in `parent_codes`, and adds a
+row for that code: no unit, the description its siblings share and the vocabulary parents they all
+have. On v1.0.2 that is 196 groups (530 codes: 186 dose, 10 rate groups) and 196 added rows.
 
 ### Enriching code metadata with suMEDS
 
