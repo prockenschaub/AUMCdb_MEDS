@@ -13,7 +13,7 @@ authors = [
 ]
 description = "A MEDS-Extract ETL pipeline that converts AmsterdamUMCdb into the MEDS format."
 readme = "README.md"
-# Mirrors MEDS-Extract 0.8's own floor and ceiling. A looser range admits interpreters it cannot
+# Mirrors MEDS-Extract 0.9's own floor and ceiling. A looser range admits interpreters it cannot
 # be installed on, and uv then refuses to resolve the project at all.
 requires-python = ">=3.11.4,<3.14"
 classifiers = [
@@ -25,15 +25,16 @@ classifiers = [
 # and every extraction stage. It is capped below the next minor because MEDS-Extract 0.x minors are
 # breaking (MESSY syntax, runner CLI), so raise it deliberately when migrating. 0.8 renamed the MESSY
 # `_table.join` key to `_table.joins`, which the config uses (0.7 rejects the new key and 0.8 the old
-# one), and decodes `_metadata` sources with `etl.encoding` too. 0.8.1 is the floor because it runs
-# the `etl.post_stages` the config declares and writes its dataset.json fields.
+# one), and decodes `_metadata` sources with `etl.encoding` too. 0.8.1 runs the `etl.post_stages`
+# the config declares and writes its dataset.json fields; 0.9.0 is the floor because it writes
+# `unit` in codes.parquet as one string per code (and fails on a code with more than one unit).
 # suMEDS 0.6.2 registers the `sumeds_enrich` stage the config declares as a post-stage, which
 # enriches the code metadata with the rules registered below. A failed enrichment is a warning that
 # keeps the ETL output (e.g. without internet), and `metadata/dataset.json` records whether the build
 # was enriched. 0.6 writes `parent_names` as a code-to-name map. It is capped below the next minor
 # for the same reason (its rules format and CLI are still 0.x).
 dependencies = [
-  "MEDS-extract[download]>=0.8.1,<0.9",
+  "MEDS-extract[download]>=0.9.0,<0.10",
   "sumeds>=0.6.2,<0.7",
 ]
 
@@ -54,10 +55,10 @@ AUMCdb = "AUMCdb_MEDS.configs:messy.yaml"
 
 # Registers the suMEDS rules under the same name, so the config's `sumeds_enrich: {rules: AUMCdb}`
 # and `--rules AUMCdb` find them.
-# The post-stage that makes `unit` in codes.parquet one string per code (and links codes that
-# differ only in their unit), so the config can declare it in `etl.post_stages`.
+# The post-stage that links codes in codes.parquet that differ only in their unit, so the config
+# can declare it in `etl.post_stages`.
 [project.entry-points."MEDS_transforms.stages"]
-aumcdb_collapse_unit_metadata = "AUMCdb_MEDS.unit_metadata:main"
+aumcdb_unit_metadata = "AUMCdb_MEDS.unit_metadata:main"
 
 [project.entry-points."sumeds.rules"]
 AUMCdb = "AUMCdb_MEDS:sumeds_rules.yaml"

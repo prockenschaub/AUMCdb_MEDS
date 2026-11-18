@@ -82,6 +82,9 @@ jobs:
         # packs); if that fails, the stage warns and keeps the ETL output.
         run: |
           uv run --no-sync MESSY-synth ./src/AUMCdb_MEDS/configs/messy.yaml -o raw_synthetic/ --explain
+          # MESSY_synth 0.1.0 pins MEDS-Extract below 0.9, so installing it downgrades MEDS-Extract;
+          # sync back to this package's MEDS-Extract (>= 0.9) before running the ETL.
+          uv sync
           uv run --no-sync meds-extract-run spec=AUMCdb output_dir=./AUMCdb_meds_synth \
             input_dir=raw_synthetic do_download=false
           for f in dataset.json codes.parquet subject_splits.parquet; do

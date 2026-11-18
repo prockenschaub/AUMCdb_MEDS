@@ -28,7 +28,7 @@ This ETL targets AmsterdamUMCdb **v1.0.2**.
 
 ## Setup
 
-Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.8.1 and
+Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.9.0 and
 [suMEDS](https://github.com/rvandewater/SumMEDS) 0.6.2, which provide the commands below.
 
 ```bash
@@ -199,12 +199,11 @@ unchanged, and a code ending in `UNK` has no unit. The dictionary's own `unit` c
 the data for every numeric item and adds none (no `MEASURE` code lacks a unit; drug items have no
 dictionary unit).
 
-MEDS-Extract writes extracted metadata as a list of the distinct values per code, so the first
-post-stage, `aumcdb_collapse_unit_metadata` (`src/AUMCdb_MEDS/unit_metadata.py`, before suMEDS),
-makes `unit` one string per code and fails if any code has more than one unit. It also gives codes
-that differ only in their unit (`DRUG//DOSE//{category}//{item}//mg` and `…//µg`) the code without
-the unit (`DRUG//DOSE//{category}//{item}`) as an in-dataset parent in `parent_codes`, and adds a
-row for that code: no unit, the description its siblings share and the vocabulary parents they all
+MEDS-Extract (since 0.9.0) writes `unit` as one string per code and fails if any code has more
+than one unit. The first post-stage, `aumcdb_unit_metadata` (`src/AUMCdb_MEDS/unit_metadata.py`,
+before suMEDS), gives codes that differ only in their unit (`DRUG//DOSE//{category}//{item}//mg`
+and `…//µg`) the code without the unit (`DRUG//DOSE//{category}//{item}`) as an in-dataset parent
+in `parent_codes`, and adds a row for that code: no unit, the description its siblings share and the vocabulary parents they all
 have. On v1.0.2 that is 196 groups (530 codes: 186 dose, 10 rate groups) and 196 added rows.
 
 ### Enriching code metadata with suMEDS

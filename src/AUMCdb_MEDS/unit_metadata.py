@@ -1,16 +1,15 @@
-"""One unit per code in ``metadata/codes.parquet``, and a parent for codes that differ only in unit.
+"""A parent for codes that differ only in unit, in ``metadata/codes.parquet``.
 
-MEDS-Extract writes every ``_metadata`` column as ``List(String)``, the distinct values seen for a
-code. A unit is a property of the code (the unit of its numeric values), so after the pipeline the
-ETL makes ``unit`` one string per code, and fails if any code has more than one unit: the unit then
-belongs in the code for that family. MEDS does not standardise this column.
+MEDS-Extract (>= 0.9) writes ``unit`` as one string per code: values stripped, blanks dropped, and
+a code with more than one distinct unit is an error, so the unit then belongs in the code for that
+family. MEDS does not standardise this column.
 
 Codes that are the same item in different units (``X//item//mg``, ``X//item//mcg``: the unit is
-the code's last component) also get the code without the unit (``X//item``) as an in-dataset
-parent in ``parent_codes``, so tools can group them, and that parent code gets a row of its own
-(no unit; the description and vocabulary parents its siblings share).
+the code's last component) get the code without the unit (``X//item``) as an in-dataset parent in
+``parent_codes``, so tools can group them, and that parent code gets a row of its own (no unit;
+the description and vocabulary parents its siblings share).
 
-The step is registered as the MEDS-Transforms stage ``aumcdb_collapse_unit_metadata`` and declared in
+The step is registered as the MEDS-Transforms stage ``aumcdb_unit_metadata`` and declared in
 ``etl.post_stages`` of ``configs/messy.yaml``, so ``meds-extract-run spec=AUMCdb`` runs it.
 """
 
@@ -29,11 +28,11 @@ from MEDS_transforms.stages import Stage
 
 logger = logging.getLogger(__name__)
 
-STAGE_NAME = "aumcdb_collapse_unit_metadata"
+STAGE_NAME = "aumcdb_unit_metadata"
 
 
 class UnitSummary(NamedTuple):
-    """What :func:`collapse_unit_metadata` found and did.
+    """What :func:`link_unit_siblings` found and did.
 
     Codes with a unit, unit-sibling groups, codes in them, and stem rows added by this run.
     """
@@ -42,49 +41,6 @@ class UnitSummary(NamedTuple):
     sibling_groups: int
     sibling_codes: int
     stem_rows_added: int
-
-
-def collapse_units(unit: pl.Series, code: pl.Series) -> pl.Series:
-    """Collapse a ``List(String)`` unit column to one nullable string per code.
-
-    Each entry is stripped, null and empty entries are dropped and the rest made distinct: no value
-    gives null, one value gives that string as recorded (no normalisation).
-
-    Raises:
-        ValueError: If any code has more than one unit; the message gives the count and up to five
-            example codes.
-
-    Examples:
-        >>> units = pl.Series([["mg", " mg"], ["", None], None, [], ["%"]], dtype=pl.List(pl.String))
-        >>> collapse_units(units, pl.Series(["A", "B", "C", "D", "E"])).to_list()
-        ['mg', None, None, None, '%']
-        >>> collapse_units(pl.Series([["mg", "g"], ["%"]]), pl.Series(["A", "B"]))
-        Traceback (most recent call last):
-            ...
-        ValueError: 1 codes have more than one unit, e.g. ['A']. Put the unit in the code for that family (as its last component) so that each code has one unit.
-    """
-    # Exploded rather than `list.eval`, which some polars versions mis-evaluate with a filter.
-    values = (
-        pl.DataFrame({"row": range(unit.len()), "unit": unit})
-        .explode("unit")
-        .with_columns(pl.col("unit").str.strip_chars())
-        .filter(pl.col("unit").is_not_null() & (pl.col("unit") != ""))
-        .group_by("row", maintain_order=True)
-        .agg(pl.col("unit").unique(maintain_order=True))
-    )
-    unit = (
-        pl.DataFrame({"row": range(unit.len())})
-        .join(values, on="row", how="left")
-        .sort("row")["unit"]
-    )
-    several = code.filter((unit.list.len() > 1).fill_null(False))
-    if several.len():
-        raise ValueError(
-            f"{several.len()} codes have more than one unit, e.g. {several.head(5).to_list()}. Put "
-            "the unit in the code for that family (as its last component) so that each code has "
-            "one unit."
-        )
-    return unit.list.first()
 
 
 def unit_sibling_stems(code: pl.Series, unit: pl.Series) -> pl.Series:
@@ -243,15 +199,14 @@ def unit_stem_rows(codes: pl.DataFrame) -> list[dict]:
     return rows
 
 
-def collapse_unit_metadata(codes_fp: Path) -> UnitSummary:
-    """Make ``unit`` one string per code and link unit siblings, in a finished ``codes.parquet``.
+def link_unit_siblings(codes_fp: Path) -> UnitSummary:
+    """Link unit siblings in a finished ``codes.parquet``.
 
-    A ``List(String)`` ``unit`` is collapsed with :func:`collapse_units` (an error if any code has
-    more than one unit; the file is then left unchanged); an already-string ``unit`` is kept. Then
-    :func:`unit_sibling_parents` adds the in-dataset parents and :func:`unit_stem_rows` the rows of
-    the stems; every other column of a stem row is null. A file without ``unit`` is not touched,
-    and running the step again changes nothing. Existing rows keep every column but ``unit`` and
-    ``parent_codes`` as they are; a file sorted by code stays sorted.
+    ``unit`` is the one string per code MEDS-Extract writes. :func:`unit_sibling_parents` adds the
+    in-dataset parents and :func:`unit_stem_rows` the rows of the stems; every other column of a
+    stem row is null. A file without ``unit`` is not touched, and running the step again changes
+    nothing. Existing rows keep every column but ``unit`` and ``parent_codes`` as they are (``unit``
+    is written as Arrow ``large_string``); a file sorted by code stays sorted.
 
     Args:
         codes_fp: The ``metadata/codes.parquet`` of a finished extraction.
@@ -263,14 +218,13 @@ def collapse_unit_metadata(codes_fp: Path) -> UnitSummary:
         >>> import tempfile
         >>> codes = pl.DataFrame(
         ...     {"code": ["A//x//g", "A//x//mg", "B"], "description": ["x", "x", None],
-        ...      "unit": [["g"], ["mg", " mg"], ["", None]]},
-        ...     schema_overrides={"unit": pl.List(pl.String)},
+        ...      "unit": ["g", "mg", None]},
         ... )
         >>> with tempfile.TemporaryDirectory() as d:
         ...     fp = Path(d) / "codes.parquet"
         ...     codes.write_parquet(fp)
-        ...     summary = collapse_unit_metadata(fp)
-        ...     again = collapse_unit_metadata(fp)
+        ...     summary = link_unit_siblings(fp)
+        ...     again = link_unit_siblings(fp)
         ...     out = pl.read_parquet(fp)
         >>> summary, again.stem_rows_added
         (UnitSummary(with_unit=2, sibling_groups=1, sibling_codes=2, stem_rows_added=1), 0)
@@ -290,19 +244,7 @@ def collapse_unit_metadata(codes_fp: Path) -> UnitSummary:
     def column(name: str, dtype: pl.DataType) -> pl.Series:
         return pl.Series(name, table[name].to_pylist(), dtype=dtype)
 
-    is_string = pa.types.is_string(
-        table.schema.field("unit").type
-    ) or pa.types.is_large_string(table.schema.field("unit").type)
-    frame = pl.DataFrame(
-        [
-            column("code", pl.String),
-            column("unit", pl.String if is_string else pl.List(pl.String)),
-        ]
-    )
-    if not is_string:
-        frame = frame.with_columns(
-            collapse_units(frame["unit"], frame["code"]).alias("unit")
-        )
+    frame = pl.DataFrame([column("code", pl.String), column("unit", pl.String)])
     if "description" in table.column_names:
         frame = frame.with_columns(column("description", pl.String))
     if "parent_codes" in table.column_names:
@@ -365,7 +307,7 @@ def collapse_unit_metadata(codes_fp: Path) -> UnitSummary:
 
 
 def _main(cfg) -> None:
-    """Run :func:`collapse_unit_metadata` on the cohort's ``metadata/codes.parquet`` (worker 0)."""
+    """Run :func:`link_unit_siblings` on the cohort's ``metadata/codes.parquet`` (worker 0)."""
     if cfg.worker != 0:
         return
     name = Path(code_metadata_filepath).name
@@ -376,9 +318,9 @@ def _main(cfg) -> None:
     if out_fp.resolve() != in_fp.resolve():
         out_fp.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(in_fp, out_fp)
-    summary = collapse_unit_metadata(out_fp)
+    summary = link_unit_siblings(out_fp)
     logger.info(
-        f"unit: one string per code ({summary.with_unit} codes have one); {summary.sibling_codes} "
+        f"unit: {summary.with_unit} codes have a unit; {summary.sibling_codes} "
         f"codes in {summary.sibling_groups} unit-sibling groups have their stem as a parent; "
         f"{summary.stem_rows_added} stem rows added."
     )

@@ -158,7 +158,7 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
 def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
     """Every code with a numeric value gets the unit of its own rows as `unit` metadata: the same
     raw value as the code's last component, so the codes themselves are unchanged."""
-    # The `aumcdb_collapse_unit_metadata` post-stage turns MEDS-Extract's List(String) into String.
+    # MEDS-Extract (>= 0.9) writes it as one String per code.
     assert codes.schema["unit"] == pl.String
     units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
     assert units["MEASURE//Synthetische temperatuur//°C"] == "°C"
