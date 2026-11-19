@@ -156,20 +156,27 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
 
 
 def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
-    """Every code with a numeric value gets the unit of its own rows as `unit` metadata: the same
-    raw value as the code's last component, so the codes themselves are unchanged."""
+    """Every code with a numeric value gets the unit of its own rows as `unit` metadata: as recorded
+    (`unit_source_value`), the same raw value as the code's last component, so the codes themselves
+    are unchanged; in `unit`, written in UCUM by suMEDS's `sumeds_normalize_units`."""
     # MEDS-Extract (>= 0.9) writes it as one String per code.
     assert codes.schema["unit"] == pl.String
     units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
-    assert units["MEASURE//Synthetische temperatuur//°C"] == "°C"
-    assert units["MEASURE//Synthetische hartslag///min"] == "/min"
-    assert (
-        units["DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg"] == "µg"
+    recorded = dict(
+        zip(codes["code"], codes["unit_source_value"].to_list(), strict=True)
     )
-    assert (
-        units["DRUG//RATE//Synthetische infusen//Synthetisch infuus//ml/uur"]
-        == "ml/uur"
-    )
+    # code -> (unit in UCUM, unit as recorded)
+    expected = {
+        "MEASURE//Synthetische temperatuur//°C": ("Cel", "°C"),
+        "MEASURE//Synthetische hartslag///min": ("/min", "/min"),
+        "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg": ("ug", "µg"),
+        "DRUG//RATE//Synthetische infusen//Synthetisch infuus//ml/uur": (
+            "mL/h",
+            "ml/uur",
+        ),
+    }
+    for code, unit in expected.items():
+        assert (units[code], recorded[code]) == unit, code
     numeric = codes.filter(
         (
             pl.col("code").str.starts_with("DRUG//RATE//")
@@ -179,7 +186,9 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         & pl.col("code_template").is_not_null()  # stem rows have no template
     )
     assert numeric.height == 9
-    for code, unit in zip(numeric["code"], numeric["unit"].to_list(), strict=True):
+    for code, unit in zip(
+        numeric["code"], numeric["unit_source_value"].to_list(), strict=True
+    ):
         assert code.endswith(f"//{unit}"), code
     # Codes without a numeric value have no unit.
     assert units["MEASURE//Synthetisch bewustzijn//0//Alert"] is None
