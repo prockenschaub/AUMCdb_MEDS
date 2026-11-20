@@ -263,7 +263,7 @@ numericitems:
           if $table == "numericitems"
         # Null for items the dictionary maps to no vocabulary, so those get no parent code.
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "numericitems"
 
 listitems:
@@ -285,7 +285,7 @@ listitems:
           {f'{$category_en} ({$category})' ?? $category})"
           if $table == "listitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "listitems"
 
 freetextitems:
@@ -308,7 +308,7 @@ freetextitems:
           $category})"
           if $table == "freetextitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "freetextitems"
 
 procedureorderitems:
@@ -330,7 +330,7 @@ procedureorderitems:
           ?? $category})"
           if $table == "procedureorderitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "procedureorderitems"
 
 processitems:
@@ -353,7 +353,7 @@ processitems:
           {f'{$category_en} ({$category})' ?? $category})"
           if $table == "processitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "processitems"
   end:
     code: 'f"PROCESS//END//{$item ?? ''UNK''}"'
@@ -367,7 +367,7 @@ processitems:
           {f'{$category_en} ({$category})' ?? $category})"
           if $table == "processitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "processitems"
 
 drugitems:
@@ -392,7 +392,7 @@ drugitems:
           $category})"
           if $table == "drugitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "drugitems"
   rate:
     code: >-
@@ -410,7 +410,7 @@ drugitems:
           itemid {$itemid}, category {f'{$category_en} ({$category})' ?? $category})"
           if $table == "drugitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "drugitems"
   dose:
     code: >-
@@ -428,7 +428,7 @@ drugitems:
           {f'{$category_en} ({$category})' ?? $category})"
           if $table == "drugitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "drugitems"
   end:
     code: 'f"DRUG//END//{$ordercategory ?? ''UNK''}//{$item ?? ''UNK''}"'
@@ -442,5 +442,5 @@ drugitems:
           {f'{$category_en} ({$category})' ?? $category})"
           if $table == "drugitems"
         parent_codes: >-
-          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}/{$vocabulary_concept_code}"
+          f"{'SNOMED' if $vocabulary_id == 'SNOMED CT' else $vocabulary_id}//{$vocabulary_concept_code}"
           if $table == "drugitems"
