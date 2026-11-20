@@ -36,18 +36,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
 
       - name: Install packages
+        # --locked installs the versions in uv.lock and fails if the lock is out of date with
+        # pyproject.toml, so the tests run against the dependencies the repository pins.
         run: |
-          pip install .[dev]
+          uv sync --locked --extra dev
 
       - name: Run the synthetic ETL and the tests
         run: |
-          pytest -q tests
+          uv run --no-sync pytest -q tests
 
   messy-synth:
     runs-on: ubuntu-latest
@@ -71,8 +73,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # The repository has no uv.lock, so this resolves the dependencies afresh (no --locked).
-          uv sync
+          # --locked installs the versions in uv.lock and fails if the lock is out of date.
+          uv sync --locked
           # MESSY_synth 0.1.1 reads MEDS-Extract 0.8 and 0.9 configs, so it installs next to this
           # package's MEDS-Extract 0.9.
           uv pip install "MESSY_synth==0.1.1"

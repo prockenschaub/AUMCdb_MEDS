@@ -2,6 +2,7 @@
 decoded with their declared encodings, and a synthetic build writes valid, described MEDS code
 metadata."""
 
+import json
 import re
 from pathlib import Path
 
@@ -18,7 +19,7 @@ NOT_TABLES = {"sources", "etl", "_defaults"}
 DICTIONARY_PREFIX = "dictionary"
 # Parents the ETL emits: only the dictionary's own item-level codes. Other vocabulary tagging
 # (e.g. OMOP Gender) is left to suMEDS (`sumeds_rules.yaml`, tests/test_sumeds_rules.py).
-OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)/\S+$")
+OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)//[^/]+$")
 
 
 def _events():
@@ -108,7 +109,7 @@ def test_sources_are_decoded_with_their_declared_encodings(codes: pl.DataFrame):
         "patient weight (synthetic) (Patiëntgewicht): "
     )
     assert "itemid 9003, category Synthetische metingen µ°)" in weight["description"]
-    assert weight["parent_codes"] == ["LOINC/29463-7"]
+    assert weight["parent_codes"] == ["LOINC//29463-7"]
 
 
 def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path):
@@ -132,7 +133,7 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
     assert parents.filter(in_dataset).unique().to_list() == [
         "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel"
     ]
-    assert parents.str.starts_with("SNOMED/").any()
+    assert parents.str.starts_with("SNOMED//").any()
 
     # Every admissions code is described from its own components.
     admissions = codes.filter(
@@ -216,3 +217,25 @@ def test_unit_siblings_get_their_stem_as_parent_and_row(codes: pl.DataFrame):
     rate = "DRUG//RATE//Synthetische infusen//Synthetisch infuus"
     assert rate not in rows
     assert rate not in (rows[f"{rate}//ml/uur"]["parent_codes"] or [])
+
+
+def test_events_carry_their_icu_admission(meds_output: Path, events: pl.DataFrame):
+    """Every event but the patient-level ones carries its `admissionid` as `icustay_id`."""
+    metadata = json.loads((meds_output / "metadata" / "dataset.json").read_text())
+    assert metadata["raw_source_id_columns"] == ["icustay_id"]
+    patient_level = pl.col("code").is_in(["MEDS_BIRTH", "MEDS_DEATH"]) | pl.col(
+        "code"
+    ).str.starts_with("GENDER//")
+    assert events.filter(patient_level)["icustay_id"].is_null().all()
+    stays = events.filter(~patient_level)
+    assert stays["icustay_id"].is_not_null().all()
+    # Patient 1's two admissions stay apart; every item table maps back to its admission.
+    assert set(
+        stays.filter(pl.col("subject_id") == 1)["icustay_id"].unique().to_list()
+    ) == {11, 12}
+    assert set(stays["icustay_id"].unique().to_list()) == {11, 12, 21, 31, 41, 51}
+    processes = stays.filter(pl.col("code").str.starts_with("PROCESS//"))
+    assert dict(zip(processes["subject_id"], processes["icustay_id"], strict=True)) == {
+        1: 11,
+        2: 21,
+    }
