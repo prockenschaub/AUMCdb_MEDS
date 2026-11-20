@@ -18,7 +18,7 @@ NOT_TABLES = {"sources", "etl", "_defaults"}
 DICTIONARY_PREFIX = "dictionary"
 # Parents the ETL emits: only the dictionary's own item-level codes. Other vocabulary tagging
 # (e.g. OMOP Gender) is left to suMEDS (`sumeds_rules.yaml`, tests/test_sumeds_rules.py).
-OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)/\S+$")
+OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)//[^/]+$")
 
 
 def _events():
