@@ -256,12 +256,16 @@ numericitems:
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
       measuredattime: "$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899"
-      # The raw `unit` under another name, for the code only: MEDS-Extract rejects a `_metadata`
-      # output named like a code component, so the code cannot read `$unit` and still write a
-      # `unit` metadata column. The rendered codes are unchanged.
-      units: $unit
+      # The unit as the code's last component, under another name than `unit`: MEDS-Extract
+      # rejects a `_metadata` output named like a code component, so the code cannot read `$unit`
+      # and still write a `unit` metadata column. It is stripped of surrounding whitespace, and
+      # `UNK` where it is missing or blank, as MEDS-Extract compares units when it writes
+      # `codes.parquet` (stripped, blanks dropped), so ` mg` and `mg` give one code. dftly 0.7 has
+      # no strip function, so the extract takes the text from the first to the last non-whitespace
+      # character (`(?s)` lets it span line breaks), which is null when there is none.
+      _value_unit: '(extract /(?s)\S(?:.*\S)?/ from $unit) ?? "UNK"'
   event:
-    code: 'f"MEASURE//{$item ?? ''UNK''}//{$units ?? ''UNK''}"'
+    code: 'f"MEASURE//{$item ?? ''UNK''}//{$_value_unit}"'
     time: $measuredattime
     icustay_id: $admissionid
     numeric_value: $value
@@ -396,6 +400,10 @@ drugitems:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
       starttime: "$_origin + ($start / 1000)::seconds"
       stoptime: "$_origin + ($stop / 1000)::seconds"
+      # The rate and dose units as the codes' last components, stripped; `UNK` where missing or
+      # blank (as `_value_unit` in numericitems).
+      _rate_unit: '(extract /(?s)\S(?:.*\S)?/ from $rateunit) ?? "UNK"'
+      _dose_unit: '(extract /(?s)\S(?:.*\S)?/ from $doseunit) ?? "UNK"'
   start:
     code: >-
       f"DRUG//START//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$action ?? 'UNK'}"
@@ -415,7 +423,7 @@ drugitems:
           if $table == "drugitems"
   rate:
     code: >-
-      f"DRUG//RATE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$rateunit ?? 'UNK'}"
+      f"DRUG//RATE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$_rate_unit}"
     time: $starttime
     icustay_id: $admissionid
     numeric_value: $rate
@@ -434,7 +442,7 @@ drugitems:
           if $table == "drugitems"
   dose:
     code: >-
-      f"DRUG//DOSE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$doseunit ?? 'UNK'}"
+      f"DRUG//DOSE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$_dose_unit}"
     time: $starttime
     icustay_id: $admissionid
     numeric_value: $dose

@@ -62,7 +62,9 @@ Synthetisch specialisme C
 """
 
 # Item tables, written as Windows-1252. Item names are made up but Dutch-like; one per table, plus
-# a lab item. The second Patiëntgewicht row has the -1899 offset that must be dropped.
+# a lab item. The second Patiëntgewicht row has the -1899 offset that must be dropped. Some units
+# are padded with whitespace (` °C `, `/min `, `ml/uur `) and one dose unit is blank: the codes strip
+# them, and the blank one is `UNK`.
 NUMERICITEMS = """\
 admissionid,itemid,item,tag,value,unitid,unit,comment,measuredat,registeredat,registeredby,\
 updatedat,updatedby,islabresult,fluidout
@@ -72,8 +74,8 @@ updatedat,updatedby,islabresult,fluidout
 21,9003,Patiëntgewicht,,61,3,kg,,-1899,0,ICV_IC-Verpleegkundig,,,0,
 21,9004,Synthetisch natrium,,139,4,mmol/l,,3600000,3700000,Systeem,,,1,
 31,9001,Synthetische hartslag,,95,1,/min,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
-41,9002,Synthetische temperatuur,,38.1,2,°C,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
-51,9001,Synthetische hartslag,,70,1,/min,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
+41,9002,Synthetische temperatuur,,38.1,2, °C ,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
+51,9001,Synthetische hartslag,,70,1,/min ,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
 """
 
 LISTITEMS = """\
@@ -110,9 +112,9 @@ doserateunitid,administered,administeredunit,administeredunitid,action,start,sto
 solutionitemid,solutionitem,solutionadministered,solutionadministeredunit,fluidin,iscontinuous
 11,1,1,Synthetische injecties,9501,Synthetisch vaatmiddel,0,0,2.5,ml/uur,1,1,0,4,µg,µg/min,1,1,\
 50,ml,1,Nieuwe zak,3600000,7200000,60,,,,,,1
-21,2,2,Synthetische infusen,9502,Synthetisch infuus,0,0,0,ml/uur,1,1,0,500,ml,,2,,500,ml,2,,\
+21,2,2,Synthetische infusen,9502,Synthetisch infuus,0,0,0,ml/uur,1,1,0,500,  ,,2,,500,ml,2,,\
 600000,4200000,60,,,,,,0
-21,3,1,Synthetische injecties,9501,Synthetisch vaatmiddel,0,0,2.5,ml/uur,1,1,0,2,mg,mg/min,3,3,\
+21,3,1,Synthetische injecties,9501,Synthetisch vaatmiddel,0,0,2.5,ml/uur ,1,1,0,2,mg,mg/min,3,3,\
 50,ml,1,,7200000,9000000,30,,,,,,1
 """
 

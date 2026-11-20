@@ -208,8 +208,10 @@ numeric values, one per code, written in [UCUM](https://ucum.org/) by suMEDS's
 `mL/h`). The spelling as recorded stays in `unit_source_value`, and a spelling suMEDS does not know
 is kept as it is. `MEASURE//{item}//{unit}` gets the `numericitems.unit` of its rows, `DRUG//RATE//…`
 the `rateunit` and `DRUG//DOSE//…` the `doseunit` (`_metadata: _self:` blocks). As recorded it is the
-same raw value as the code's last component, so tools can read the unit without parsing the code;
-the codes are unchanged (`…//°C` keeps its name), and a code ending in `UNK` has no unit. The dictionary's own `unit` column agrees with
+same value as the code's last component, so tools can read the unit without parsing the code;
+the codes are unchanged (`…//°C` keeps its name), and a code ending in `UNK` has no unit. The unit in
+a code is stripped of surrounding whitespace; missing or blank is `UNK`. MEDS-Extract compares units
+the same way when it writes `unit` (stripped, blanks dropped), so ` °C` and `°C` give one code. The dictionary's own `unit` column agrees with
 the data for every numeric item and adds none (no `MEASURE` code lacks a unit; drug items have no
 dictionary unit).
 
@@ -381,6 +383,14 @@ pre-commit install
     `LOINC//2951-2`, the spelling suMEDS already writes for the parents it adds. Codes and events are
     unchanged. To migrate, respell old parents with the regex `^([^/]+)/(?!/)` → `\1//`. suMEDS and
     alignEHR already read both spellings as the same parent.
+- **The unit in a code is stripped of surrounding whitespace, and a blank one is `UNK`**:
+    `MEASURE//{item}//{unit}`, `DRUG//RATE//…//{rateunit}` and `DRUG//DOSE//…//{doseunit}`. Before,
+    the unit was copied as recorded: a padded unit (` °C`) gave a code of its own, and a blank or
+    empty one gave a code ending in whitespace or in `//`, with no `unit`. No output change on the
+    synthetic data; codes change only where a unit was padded or blank. To migrate, strip the last
+    component of an old code and write `UNK` for an empty one:
+    `^((?:MEASURE|DRUG//(?:RATE|DOSE))//.*//)\s*(\S(?:.*\S)?)?\s*$` → `\1\2`, then a trailing
+    `//` → `//UNK`.
 
 ## Citation
 
