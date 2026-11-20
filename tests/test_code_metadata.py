@@ -19,7 +19,7 @@ NOT_TABLES = {"sources", "etl", "_defaults"}
 DICTIONARY_PREFIX = "dictionary"
 # Parents the ETL emits: only the dictionary's own item-level codes. Other vocabulary tagging
 # (e.g. OMOP Gender) is left to suMEDS (`sumeds_rules.yaml`, tests/test_sumeds_rules.py).
-OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)/\S+$")
+OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)//[^/]+$")
 
 
 def _events():
@@ -109,7 +109,7 @@ def test_sources_are_decoded_with_their_declared_encodings(codes: pl.DataFrame):
         "patient weight (synthetic) (Patiëntgewicht): "
     )
     assert "itemid 9003, category Synthetische metingen µ°)" in weight["description"]
-    assert weight["parent_codes"] == ["LOINC/29463-7"]
+    assert weight["parent_codes"] == ["LOINC//29463-7"]
 
 
 def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path):
@@ -133,7 +133,7 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
     assert parents.filter(in_dataset).unique().to_list() == [
         "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel"
     ]
-    assert parents.str.starts_with("SNOMED/").any()
+    assert parents.str.starts_with("SNOMED//").any()
 
     # Every admissions code is described from its own components.
     admissions = codes.filter(

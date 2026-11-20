@@ -376,6 +376,11 @@ pre-commit install
     `metadata/dataset.json` (which listed none before). Event rows and codes are otherwise
     unchanged, and nothing needs migrating; code that selects columns by position, or expects only
     the MEDS core columns, should select by name or drop it: `df.drop("icustay_id")`.
+- **Vocabulary parents are spelled `VOCABULARY//CODE`.** The `parent_codes` the ETL takes from the
+    item dictionary (`LOINC`, `ATC`, `SNOMED`) used one slash, `LOINC/2951-2`; they now use two,
+    `LOINC//2951-2`, the spelling suMEDS already writes for the parents it adds. Codes and events are
+    unchanged. To migrate, respell old parents with the regex `^([^/]+)/(?!/)` → `\1//`. suMEDS and
+    alignEHR already read both spellings as the same parent.
 
 ## Citation
 
