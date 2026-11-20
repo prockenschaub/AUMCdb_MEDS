@@ -109,7 +109,8 @@ def test_sources_are_decoded_with_their_declared_encodings(codes: pl.DataFrame):
         "patient weight (synthetic) (Patiëntgewicht): "
     )
     assert "itemid 9003, category Synthetische metingen µ°)" in weight["description"]
-    assert weight["parent_codes"] == ["LOINC//29463-7"]
+    # The dictionary's LOINC parent, then its unit-free stem (`link_single_units`).
+    assert weight["parent_codes"] == ["LOINC//29463-7", "MEASURE//Patiëntgewicht"]
 
 
 def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path):
@@ -125,14 +126,18 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
         [p for ps in codes["parent_codes"].to_list() if ps for p in ps], dtype=pl.String
     )
     # Besides vocabulary references, the only parents are in-dataset: the code without the unit,
-    # given to codes that differ only in their unit (test_unit_siblings_get_their_stem_as_parent_and_row).
+    # given to every code that ends in its unit (test_unit_siblings_get_their_stem_as_parent_and_row).
     in_dataset = parents.is_in(codes["code"].implode())
     assert parents.filter(~in_dataset).str.contains(OMOP_PARENT.pattern).all(), (
         parents.to_list()
     )
-    assert parents.filter(in_dataset).unique().to_list() == [
-        "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel"
-    ]
+    for code, ps in zip(
+        codes["code"].to_list(), codes["parent_codes"].to_list(), strict=True
+    ):
+        in_dataset_parents = [p for p in ps or [] if p in set(codes["code"])]
+        assert len(in_dataset_parents) <= 1, code
+        assert all(code.startswith(f"{p}//") for p in in_dataset_parents), code
+    assert "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel" in set(parents)
     assert parents.str.starts_with("SNOMED//").any()
 
     # Every admissions code is described from its own components.
@@ -218,10 +223,10 @@ def test_unit_siblings_get_their_stem_as_parent_and_row(codes: pl.DataFrame):
     assert rows[stem]["description"] == rows[siblings[1]]["description"]
     vocabulary = [p for p in rows[siblings[0]]["parent_codes"] if p != stem]
     assert (rows[stem]["parent_codes"] or []) == vocabulary
-    # A unit-suffixed code without a sibling gets no stem parent and no stem row.
+    # A unit-suffixed code without a sibling gets its stem too (`link_single_units`).
     rate = "DRUG//RATE//Synthetische infusen//Synthetisch infuus"
-    assert rate not in rows
-    assert rate not in (rows[f"{rate}//ml/uur"]["parent_codes"] or [])
+    assert rows[rate]["unit"] is None
+    assert rows[f"{rate}//ml/uur"]["parent_codes"][-1] == rate
 
 
 def test_events_carry_their_icu_admission(meds_output: Path, events: pl.DataFrame):

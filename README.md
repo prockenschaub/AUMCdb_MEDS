@@ -230,8 +230,10 @@ than one unit. The first post-stage, suMEDS's shared `sumeds_link_unit_siblings`
 differ only in their unit (`DRUG//DOSE//{category}//{item}//mg` and `…//µg`) the code without the
 unit (`DRUG//DOSE//{category}//{item}`) as an in-dataset parent in `parent_codes`, and adds a row
 for that code: no unit, the description its siblings share (or, if they differ only by their own
-unit, that description without it) and the vocabulary parents they all have. AUMCdb uses the
-stage's default options, so a `…//UNK` code (no unit recorded) also joins its item's siblings once
+unit, that description without it) and the vocabulary parents they all have. With
+`link_single_units: true`, a code ending in its unit gets its stem also when its item has a single
+unit (`DRUG//DOSE//{category}//{item}//mg` alone gets `DRUG//DOSE//{category}//{item}`). AUMCdb uses
+the stage's default options otherwise, so a `…//UNK` code (no unit recorded) also joins its item's siblings once
 the item has a real unit. The post-stages run in this order: `sumeds_link_unit_siblings`,
 `sumeds_normalize_units`, `sumeds_enrich`. On v1.0.2 the ETL's own copy of this step (before suMEDS
 0.6.6) found 196 groups (530 codes: 186 dose, 10 rate groups) and added 196 rows.
@@ -387,11 +389,13 @@ pre-commit install
     `metadata/dataset.json` (which listed none before). Event rows and codes are otherwise
     unchanged, and nothing needs migrating; code that selects columns by position, or expects only
     the MEDS core columns, should select by name or drop it: `df.drop("icustay_id")`.
+
 - **Vocabulary parents are spelled `VOCABULARY//CODE`.** The `parent_codes` the ETL takes from the
     item dictionary (`LOINC`, `ATC`, `SNOMED`) used one slash, `LOINC/2951-2`; they now use two,
     `LOINC//2951-2`, the spelling suMEDS already writes for the parents it adds. Codes and events are
     unchanged. To migrate, respell old parents with the regex `^([^/]+)/(?!/)` → `\1//`. suMEDS and
     alignEHR already read both spellings as the same parent.
+
 - **The unit in a code is stripped of surrounding whitespace, and a blank one is `UNK`**:
     `MEASURE//{item}//{unit}`, `DRUG//RATE//…//{rateunit}` and `DRUG//DOSE//…//{doseunit}`. Before,
     the unit was copied as recorded: a padded unit (` °C`) gave a code of its own, and a blank or
@@ -400,6 +404,16 @@ pre-commit install
     component of an old code and write `UNK` for an empty one:
     `^((?:MEASURE|DRUG//(?:RATE|DOSE))//.*//)\s*(\S(?:.*\S)?)?\s*$` → `\1\2`, then a trailing
     `//` → `//UNK`.
+
+- **`codes.parquet` gains unit-free stem rows and stem parents for single-unit codes**
+    ([#24](https://github.com/prockenschaub/AUMCdb_MEDS/pull/24)). suMEDS's `sumeds_link_unit_siblings` now runs with `link_single_units: true`:
+    every code that ends in its unit gets the code without the unit (its stem) as its last
+    `parent_codes` entry, and the stem gets a row of its own (no unit, no events), also when the
+    item has a single unit (`DRUG//DOSE//{category}//{item}//{unit}` gets `DRUG//DOSE//{category}//{item}`, likewise `DRUG//RATE` and `MEASURE`). Before, only items recorded in two or more units did.
+    Events are unchanged. On a synthetic (MESSY-synth) build, 30 codes gain a stem parent and 30 stem rows are added (17 `DRUG//DOSE`, 13 `DRUG//RATE`). To migrate, nothing is needed unless a tool expects every
+    `codes.parquet` row to have events: drop the stem rows (no `code_template`, no `unit`), or
+    ignore a parent that is the code without its last `//` component.
+
 - **Intermediate stage outputs are no longer kept.** Up to 0.2.0, a run left each stage's output in
     `<output_dir>/<stage>/` (`convert_to_parquet/`, `convert_to_MEDS_events/`, `sumeds_enrich/`, …). The spec now sets MEDS-Extract's
     `etl.cleanup_intermediates: true`, so a successful run deletes those directories and keeps only
