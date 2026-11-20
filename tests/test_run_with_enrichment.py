@@ -217,16 +217,19 @@ def test_loinc_parent_references_are_identified_and_named(enriched_codes: pl.Dat
     }
 
     # A LOINC reference missing from the pack, and the ATC and SNOMED CT references (no pack), are
-    # left alone.
+    # left alone; so is the in-dataset parent of a unit sibling (the code without its unit).
     for code, parent in [
-        ("MEASURE//Synthetisch natrium//mmol/l", "LOINC/2951-2"),
+        ("MEASURE//Synthetisch natrium//mmol/l", ["LOINC/2951-2"]),
         (
             "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg",
-            "ATC/C01CA03",
+            [
+                "ATC/C01CA03",
+                "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel",
+            ],
         ),
-        ("PROCESS//START//Synthetische lijn", "SNOMED/392230005"),
+        ("PROCESS//START//Synthetische lijn", ["SNOMED/392230005"]),
     ]:
-        assert rows[code]["parent_codes"] == [parent], code
+        assert rows[code]["parent_codes"] == parent, code
         assert not _names(rows[code]["parent_names"]), code
         assert rows[code]["vocabulary_id"] is None, code
 
@@ -281,7 +284,9 @@ def test_skipping_the_stage_gives_the_plain_etl(
     assert "sumeds_enrichment" not in metadata
 
     spec = yaml.safe_load(MESSY_CFG.read_text())
-    del spec["etl"]["post_stages"]
+    spec["etl"]["post_stages"] = [
+        stage for stage in spec["etl"]["post_stages"] if "sumeds_enrich" not in stage
+    ]
     spec_fp = tmp_path / "messy.yaml"
     spec_fp.write_text(yaml.safe_dump(spec, sort_keys=False))
     output_dir = tmp_path / "MEDS_cohort"

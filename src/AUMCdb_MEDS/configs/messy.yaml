@@ -88,7 +88,15 @@ etl:
   # metadata/dataset.json. A failed enrichment (e.g. without internet access) keeps codes.parquet as
   # the ETL wrote it and does not fail the run; `suMEDS-enrich OUTPUT_DIR` finishes it later.
   # `skip_stages=[sumeds_enrich]` leaves it out of a run.
+  #
+  # Before it, `aumcdb_unit_metadata` (src/AUMCdb_MEDS/unit_metadata.py) gives codes that differ
+  # only in their unit the code without the unit as parent, and adds a row for that parent code. It runs first so that the enrichment, also a later `suMEDS-enrich`, sees
+  # the finished code list.
   post_stages:
+    - aumcdb_unit_metadata
+    # One UCUM spelling for every `unit` (suMEDS's shared table, e.g. `Cel`, `mm[Hg]`, `mg/dL`); the
+    # spelling as recorded stays in `unit_source_value`, and an unknown spelling is kept as it is.
+    - sumeds_normalize_units
     - sumeds_enrich: { rules: AUMCdb }
 
 _defaults:
@@ -218,6 +226,13 @@ admissions:
 # OMOP vocabulary_id: the dictionary writes "SNOMED CT" for SNOMED). Each block only takes the
 # dictionary rows of its own table (`if $table == ...`; other rows yield no output and are dropped),
 # so an item name can never describe codes of another table.
+#
+# Units: every event with a numeric value (numericitems, drug rate and dose) also writes the unit of
+# its own rows as the code's `unit` metadata (`_metadata: _self:`), so tools can read it without
+# parsing the code. It is the same column, as recorded, that already forms the code's last
+# component, so every code has exactly one unit (null where the code says `UNK`). The dictionary's
+# own `unit` column is not used: its join is on the item alone, so it would put one unit on every
+# unit variant of an item.
 # ---------------------------------------------------------------------------
 
 numericitems:
@@ -227,11 +242,17 @@ numericitems:
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
       measuredattime: "$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899"
+      # The raw `unit` under another name, for the code only: MEDS-Extract rejects a `_metadata`
+      # output named like a code component, so the code cannot read `$unit` and still write a
+      # `unit` metadata column. The rendered codes are unchanged.
+      units: $unit
   event:
-    code: 'f"MEASURE//{$item ?? ''UNK''}//{$unit ?? ''UNK''}"'
+    code: 'f"MEASURE//{$item ?? ''UNK''}//{$units ?? ''UNK''}"'
     time: $measuredattime
     numeric_value: $value
     _metadata:
+      _self:
+        unit: $unit
       dictionary:
         item: $item
         description: >-
@@ -377,6 +398,8 @@ drugitems:
     time: $starttime
     numeric_value: $rate
     _metadata:
+      _self:
+        unit: $rateunit
       dictionary:
         item: $item
         description: >-
@@ -393,6 +416,8 @@ drugitems:
     time: $starttime
     numeric_value: $dose
     _metadata:
+      _self:
+        unit: $doseunit
       dictionary:
         item: $item
         description: >-

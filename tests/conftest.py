@@ -19,8 +19,8 @@ The files reproduce what the config has to handle in the real release:
 - list items have one dictionary row per list value, and one item name also has a dictionary row
   of another table, which must not describe this table's codes.
 
-MESSY-synth (https://github.com/mmcdermott/MESSY_synth) generated the synthetic data before, but it
-still pins ``MEDS-extract<0.8``, so it cannot be installed next to this package.
+The synthetic ETL workflow also generates raw files straight from the config with MESSY-synth
+(https://github.com/mmcdermott/MESSY_synth) 0.1.1, which reads MEDS-Extract 0.8 and 0.9 configs.
 """
 
 import csv
@@ -112,6 +112,8 @@ solutionitemid,solutionitem,solutionadministered,solutionadministeredunit,fluidi
 50,ml,1,Nieuwe zak,3600000,7200000,60,,,,,,1
 21,2,2,Synthetische infusen,9502,Synthetisch infuus,0,0,0,ml/uur,1,1,0,500,ml,,2,,500,ml,2,,\
 600000,4200000,60,,,,,,0
+21,3,1,Synthetische injecties,9501,Synthetisch vaatmiddel,0,0,2.5,ml/uur,1,1,0,2,mg,mg/min,3,3,\
+50,ml,1,,7200000,9000000,30,,,,,,1
 """
 
 ITEM_TABLES = {

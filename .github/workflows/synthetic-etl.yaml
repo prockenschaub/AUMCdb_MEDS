@@ -73,8 +73,9 @@ jobs:
         run: |
           # The repository has no uv.lock, so this resolves the dependencies afresh (no --locked).
           uv sync
-          # MESSY_synth 0.1.0 is the first release that reads MEDS-Extract 0.8 configs.
-          uv pip install "MESSY_synth==0.1.0"
+          # MESSY_synth 0.1.1 reads MEDS-Extract 0.8 and 0.9 configs, so it installs next to this
+          # package's MEDS-Extract 0.9.
+          uv pip install "MESSY_synth==0.1.1"
 
       - name: Generate and extract synthetic data
         # The synthetic tables include the item dictionary, and do_download=false keeps
