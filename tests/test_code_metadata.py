@@ -158,8 +158,9 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
 
 def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
     """Every code with a numeric value gets the unit of its own rows as `unit` metadata: as recorded
-    (`unit_source_value`), the same raw value as the code's last component, so the codes themselves
-    are unchanged; in `unit`, written in UCUM by suMEDS's `sumeds_normalize_units`."""
+    (`unit_source_value`), the same value as the code's last component (both stripped of surrounding
+    whitespace; the code says `UNK` where there is none); in `unit`, written in UCUM by suMEDS's
+    `sumeds_normalize_units`."""
     # MEDS-Extract (>= 0.9) writes it as one String per code.
     assert codes.schema["unit"] == pl.String
     units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
@@ -182,7 +183,7 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         (
             pl.col("code").str.starts_with("DRUG//RATE//")
             | pl.col("code").str.starts_with("DRUG//DOSE//")
-            | pl.col("code_template").str.contains("units", literal=True)
+            | pl.col("code_template").str.contains("_value_unit", literal=True)
         )
         & pl.col("code_template").is_not_null()  # stem rows have no template
     )
@@ -190,7 +191,8 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
     for code, unit in zip(
         numeric["code"], numeric["unit_source_value"].to_list(), strict=True
     ):
-        assert code.endswith(f"//{unit}"), code
+        # The unit is stripped in both; a code whose unit is missing or blank ends in `UNK`.
+        assert code.endswith(f"//{unit or 'UNK'}"), code
     # Codes without a numeric value have no unit.
     assert units["MEASURE//Synthetisch bewustzijn//0//Alert"] is None
     assert (
@@ -198,6 +200,9 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         is None
     )
     assert units["MEDS_BIRTH"] is None
+    # The blank dose unit gives an `UNK` code without a unit, not a code ending in whitespace.
+    assert units["DRUG//DOSE//Synthetische infusen//Synthetisch infuus//UNK"] is None
+    assert not codes.filter(pl.col("code").str.contains(r"(\s|//)$")).height
 
 
 def test_unit_siblings_get_their_stem_as_parent_and_row(codes: pl.DataFrame):
@@ -239,3 +244,17 @@ def test_events_carry_their_icu_admission(meds_output: Path, events: pl.DataFram
         1: 11,
         2: 21,
     }
+
+
+def test_padded_units_give_the_stripped_code(events: pl.DataFrame):
+    """The fixture pads some units (` °C `, `/min `, `ml/uur `): those rows share the code of the
+    unpadded unit, and a blank dose unit gives `…//UNK`."""
+    counts = dict(events["code"].value_counts().iter_rows())
+    assert counts["MEASURE//Synthetische hartslag///min"] == 3
+    assert counts["MEASURE//Synthetische temperatuur//°C"] == 2
+    assert (
+        counts["DRUG//RATE//Synthetische injecties//Synthetisch vaatmiddel//ml/uur"]
+        == 2
+    )
+    assert counts["DRUG//DOSE//Synthetische infusen//Synthetisch infuus//UNK"] == 1
+    assert not events.filter(pl.col("code").str.contains(r"(\s|//)$")).height
