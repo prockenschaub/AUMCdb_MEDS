@@ -28,7 +28,7 @@ This ETL targets AmsterdamUMCdb **v1.0.2**.
 
 ## Setup
 
-Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.9.0 and
+Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.9.2 and
 [suMEDS](https://github.com/rvandewater/SumMEDS) 0.6.2, which provide the commands below.
 
 ```bash
