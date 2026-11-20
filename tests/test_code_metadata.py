@@ -131,7 +131,9 @@ def test_synthetic_build_writes_described_valid_code_metadata(meds_output: Path)
     assert parents.filter(~in_dataset).str.contains(OMOP_PARENT.pattern).all(), (
         parents.to_list()
     )
-    for code, ps in zip(codes["code"].to_list(), codes["parent_codes"].to_list(), strict=True):
+    for code, ps in zip(
+        codes["code"].to_list(), codes["parent_codes"].to_list(), strict=True
+    ):
         in_dataset_parents = [p for p in ps or [] if p in set(codes["code"])]
         assert len(in_dataset_parents) <= 1, code
         assert all(code.startswith(f"{p}//") for p in in_dataset_parents), code
