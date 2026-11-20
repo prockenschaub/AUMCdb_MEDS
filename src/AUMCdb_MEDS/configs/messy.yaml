@@ -89,11 +89,13 @@ etl:
   # the ETL wrote it and does not fail the run; `suMEDS-enrich OUTPUT_DIR` finishes it later.
   # `skip_stages=[sumeds_enrich]` leaves it out of a run.
   #
-  # Before it, `aumcdb_unit_metadata` (src/AUMCdb_MEDS/unit_metadata.py) gives codes that differ
-  # only in their unit the code without the unit as parent, and adds a row for that parent code. It runs first so that the enrichment, also a later `suMEDS-enrich`, sees
-  # the finished code list.
+  # Before it, suMEDS's shared `sumeds_link_unit_siblings` stage (default options;
+  # https://github.com/rvandewater/suMEDS/blob/main/docs/unit_siblings.md) gives codes that differ
+  # only in their unit (and a `…//UNK` code of the same item, once it has a real unit) the code
+  # without the unit as parent, and adds a row for that parent code. It runs first so that the
+  # enrichment, also a later `suMEDS-enrich`, sees the finished code list.
   post_stages:
-    - aumcdb_unit_metadata
+    - sumeds_link_unit_siblings
     # One UCUM spelling for every `unit` (suMEDS's shared table, e.g. `Cel`, `mm[Hg]`, `mg/dL`); the
     # spelling as recorded stays in `unit_source_value`, and an unknown spelling is kept as it is.
     - sumeds_normalize_units
