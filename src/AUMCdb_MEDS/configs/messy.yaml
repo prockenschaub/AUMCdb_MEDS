@@ -83,6 +83,13 @@ etl:
   # lists the DANS Licence, and access also requires AmsterdamUMCdb's own end user license
   # agreement, so neither name alone describes the terms.
   description_uri: https://doi.org/10.17026/dans-22u-f8vd
+  # `icustay_id` is `admissionid`, "unique value to identify the admission to the ICU" (the
+  # AmsterdamUMCdb wiki, admissions table): one ICU or medium-care (MC) admission. A patient can
+  # have several, "during the same or another hospitalization", and the release has no hospital-stay
+  # id. Every table but `admissions` is keyed on it. The name is the MIMIC-IV ETL's, shared by the
+  # other MEDS ETLs (rvandewater/alignEHR#55). It is on every event but the patient-level ones
+  # (birth, gender, death).
+  raw_source_id_columns: [icustay_id]
   # After the canonical pipeline, suMEDS (a dependency of this package) enriches
   # metadata/codes.parquet with the rules registered as AUMCdb and records it in
   # metadata/dataset.json. A failed enrichment (e.g. without internet access) keeps codes.parquet as
@@ -172,10 +179,12 @@ admissions:
           "Death, at the recorded date of death (AmsterdamUMCdb admissions.dateofdeath)"
 
   # --- Admission-level events. -----------------------------------------------
+  # Each carries its admission as `icustay_id`, as do the events of every table below.
   icu_admission:
     code: >-
       f"ICU_ADMISSION//{$location ?? 'UNK'}//{$urgency ?? 'UNK'}//{$origin ?? 'UNK'}//{$specialty ?? 'UNK'}"
     time: $admittedattime
+    icustay_id: $admissionid
     _metadata:
       _self:
         description: >-
@@ -186,6 +195,7 @@ admissions:
   icu_discharge:
     code: 'f"ICU_DISCHARGE//{$destination ?? ''UNK''}"'
     time: $dischargedattime
+    icustay_id: $admissionid
     _metadata:
       _self:
         description: >-
@@ -194,6 +204,7 @@ admissions:
   weight:
     code: 'f"WEIGHT_AT_ADMISSION//{$weightsource ?? ''UNK''}//{$weightgroup ?? ''UNK''}"'
     time: $admittedattime
+    icustay_id: $admissionid
     _metadata:
       _self:
         description: >-
@@ -203,6 +214,7 @@ admissions:
   height:
     code: 'f"HEIGHT_AT_ADMISSION//{$heightsource ?? ''UNK''}//{$heightgroup ?? ''UNK''}"'
     time: $admittedattime
+    icustay_id: $admissionid
     _metadata:
       _self:
         description: >-
@@ -251,6 +263,7 @@ numericitems:
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$units ?? ''UNK''}"'
     time: $measuredattime
+    icustay_id: $admissionid
     numeric_value: $value
     _metadata:
       _self:
@@ -276,6 +289,7 @@ listitems:
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}//{$value ?? ''UNK''}"'
     time: $measuredattime
+    icustay_id: $admissionid
     _metadata:
       dictionary:
         item: $item
@@ -298,6 +312,7 @@ freetextitems:
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$islabresult ?? ''UNK''}"'
     time: $measuredattime
+    icustay_id: $admissionid
     text_value: $value
     _metadata:
       dictionary:
@@ -321,6 +336,7 @@ procedureorderitems:
   event:
     code: 'f"PROCEDURE//{$ordercategoryname ?? ''UNK''}//{$item ?? ''UNK''}"'
     time: $registeredattime
+    icustay_id: $admissionid
     _metadata:
       dictionary:
         item: $item
@@ -344,6 +360,7 @@ processitems:
   start:
     code: 'f"PROCESS//START//{$item ?? ''UNK''}"'
     time: $starttime
+    icustay_id: $admissionid
     _metadata:
       dictionary:
         item: $item
@@ -358,6 +375,7 @@ processitems:
   end:
     code: 'f"PROCESS//END//{$item ?? ''UNK''}"'
     time: $stoptime
+    icustay_id: $admissionid
     _metadata:
       dictionary:
         item: $item
@@ -382,6 +400,7 @@ drugitems:
     code: >-
       f"DRUG//START//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$action ?? 'UNK'}"
     time: $starttime
+    icustay_id: $admissionid
     _metadata:
       dictionary:
         item: $item
@@ -398,6 +417,7 @@ drugitems:
     code: >-
       f"DRUG//RATE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$rateunit ?? 'UNK'}"
     time: $starttime
+    icustay_id: $admissionid
     numeric_value: $rate
     _metadata:
       _self:
@@ -416,6 +436,7 @@ drugitems:
     code: >-
       f"DRUG//DOSE//{$ordercategory ?? 'UNK'}//{$item ?? 'UNK'}//{$doseunit ?? 'UNK'}"
     time: $starttime
+    icustay_id: $admissionid
     numeric_value: $dose
     _metadata:
       _self:
@@ -433,6 +454,7 @@ drugitems:
   end:
     code: 'f"DRUG//END//{$ordercategory ?? ''UNK''}//{$item ?? ''UNK''}"'
     time: $stoptime
+    icustay_id: $admissionid
     _metadata:
       dictionary:
         item: $item
