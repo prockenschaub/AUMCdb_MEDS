@@ -200,7 +200,7 @@ def test_loinc_parent_references_are_identified_and_named(enriched_codes: pl.Dat
     # The dictionary's LOINC parent identifies the code and gets its LOINC name; the ETL's
     # description is kept.
     heart_rate = rows["MEASURE//Synthetische hartslag///min"]
-    assert heart_rate["parent_codes"] == ["LOINC//8867-4"]
+    assert heart_rate["parent_codes"] == ["LOINC//8867-4", "MEASURE//Synthetische hartslag"]
     assert _names(heart_rate["parent_names"]) == {
         "LOINC//8867-4": title("LOINC", "8867-4")
     }
@@ -217,9 +217,9 @@ def test_loinc_parent_references_are_identified_and_named(enriched_codes: pl.Dat
     }
 
     # A LOINC reference missing from the pack, and the ATC and SNOMED CT references (no pack), are
-    # left alone; so is the in-dataset parent of a unit sibling (the code without its unit).
+    # left alone; so is the in-dataset parent of a code ending in its unit (the code without it).
     for code, parent in [
-        ("MEASURE//Synthetisch natrium//mmol/l", ["LOINC//2951-2"]),
+        ("MEASURE//Synthetisch natrium//mmol/l", ["LOINC//2951-2", "MEASURE//Synthetisch natrium"]),
         (
             "DRUG//DOSE//Synthetische injecties//Synthetisch vaatmiddel//µg",
             [
