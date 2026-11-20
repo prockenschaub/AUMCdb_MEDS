@@ -202,11 +202,16 @@ the data for every numeric item and adds none (no `MEASURE` code lacks a unit; d
 dictionary unit).
 
 MEDS-Extract (since 0.9.0) writes `unit` as one string per code and fails if any code has more
-than one unit. The first post-stage, `aumcdb_unit_metadata` (`src/AUMCdb_MEDS/unit_metadata.py`,
-before suMEDS), gives codes that differ only in their unit (`DRUG//DOSE//{category}//{item}//mg`
-and `…//µg`) the code without the unit (`DRUG//DOSE//{category}//{item}`) as an in-dataset parent
-in `parent_codes`, and adds a row for that code: no unit, the description its siblings share and the vocabulary parents they all
-have. On v1.0.2 that is 196 groups (530 codes: 186 dose, 10 rate groups) and 196 added rows.
+than one unit. The first post-stage, suMEDS's shared `sumeds_link_unit_siblings`
+([docs](https://github.com/rvandewater/suMEDS/blob/main/docs/unit_siblings.md)), gives codes that
+differ only in their unit (`DRUG//DOSE//{category}//{item}//mg` and `…//µg`) the code without the
+unit (`DRUG//DOSE//{category}//{item}`) as an in-dataset parent in `parent_codes`, and adds a row
+for that code: no unit, the description its siblings share (or, if they differ only by their own
+unit, that description without it) and the vocabulary parents they all have. AUMCdb uses the
+stage's default options, so a `…//UNK` code (no unit recorded) also joins its item's siblings once
+the item has a real unit. The post-stages run in this order: `sumeds_link_unit_siblings`,
+`sumeds_normalize_units`, `sumeds_enrich`. On v1.0.2 the ETL's own copy of this step (before suMEDS
+0.6.6) found 196 groups (530 codes: 186 dose, 10 rate groups) and added 196 rows.
 
 ### Enriching code metadata with suMEDS
 
@@ -216,7 +221,7 @@ pinned release), which maintain one copy for all MEDS ETLs, rather than in this 
 ships the rules for it, [`src/AUMCdb_MEDS/sumeds_rules.yaml`](src/AUMCdb_MEDS/sumeds_rules.yaml)
 (package data, also `AUMCdb_MEDS.SUMEDS_RULES`, format `sumeds-rules/0.1`), registered in suMEDS's `sumeds.rules` entry-point group under the same
 name as the MEDS-Extract spec, `AUMCdb`. The spec declares suMEDS's `sumeds_enrich` stage after the
-canonical pipeline (`etl.post_stages`, after `aumcdb_unit_metadata` and suMEDS's
+canonical pipeline (`etl.post_stages`, after suMEDS's `sumeds_link_unit_siblings` and
 `sumeds_normalize_units`), so `meds-extract-run spec=AUMCdb` enriches the finished
 `metadata/codes.parquet` in place, and it stays valid MEDS code metadata. `--rules AUMCdb` works for
 any suMEDS command. By default the LOINC data comes from suMEDS's ontology packs, fetched from GitHub
