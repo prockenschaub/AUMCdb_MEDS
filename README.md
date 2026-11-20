@@ -28,7 +28,7 @@ This ETL targets AmsterdamUMCdb **v1.0.2**.
 
 ## Setup
 
-Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.9.0 and
+Requires Python `>=3.11.4,<3.14`. The package installs MEDS-Extract 0.9.2 and
 [suMEDS](https://github.com/rvandewater/SumMEDS) 0.6.2, which provide the commands below.
 
 ```bash
@@ -73,6 +73,15 @@ already have (no API key needed):
 ```bash
 meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR key=common
 ```
+
+Intermediate stage outputs are deleted after a successful run, by default: the spec sets
+MEDS-Extract's `etl.cleanup_intermediates: true`, so a finished `$MEDS_DIR` holds only `data/`,
+`metadata/`, `.logs/` and `.meds_extract_run/`. A failed run keeps them, so the same command resumes
+where it stopped, and the same command on a finished output still does nothing. To keep them (to look
+at a stage's output; `$MEDS_DIR/.logs/pipeline.log` keeps the stage logs either way), add
+`"overrides=['cleanup_intermediates=false']"`. Cleanup never deletes raw data: a download into the
+default `$MEDS_DIR/.meds_extract_run/raw_input` stays, and `download_dest_dir=` elsewhere lets other
+output directories reuse it.
 
 ### Resources and parallelism
 
@@ -208,8 +217,10 @@ numeric values, one per code, written in [UCUM](https://ucum.org/) by suMEDS's
 `mL/h`). The spelling as recorded stays in `unit_source_value`, and a spelling suMEDS does not know
 is kept as it is. `MEASURE//{item}//{unit}` gets the `numericitems.unit` of its rows, `DRUG//RATE//…`
 the `rateunit` and `DRUG//DOSE//…` the `doseunit` (`_metadata: _self:` blocks). As recorded it is the
-same raw value as the code's last component, so tools can read the unit without parsing the code;
-the codes are unchanged (`…//°C` keeps its name), and a code ending in `UNK` has no unit. The dictionary's own `unit` column agrees with
+same value as the code's last component, so tools can read the unit without parsing the code;
+the codes are unchanged (`…//°C` keeps its name), and a code ending in `UNK` has no unit. The unit in
+a code is stripped of surrounding whitespace; missing or blank is `UNK`. MEDS-Extract compares units
+the same way when it writes `unit` (stripped, blanks dropped), so ` °C` and `°C` give one code. The dictionary's own `unit` column agrees with
 the data for every numeric item and adds none (no `MEASURE` code lacks a unit; drug items have no
 dictionary unit).
 
@@ -219,8 +230,10 @@ than one unit. The first post-stage, suMEDS's shared `sumeds_link_unit_siblings`
 differ only in their unit (`DRUG//DOSE//{category}//{item}//mg` and `…//µg`) the code without the
 unit (`DRUG//DOSE//{category}//{item}`) as an in-dataset parent in `parent_codes`, and adds a row
 for that code: no unit, the description its siblings share (or, if they differ only by their own
-unit, that description without it) and the vocabulary parents they all have. AUMCdb uses the
-stage's default options, so a `…//UNK` code (no unit recorded) also joins its item's siblings once
+unit, that description without it) and the vocabulary parents they all have. With
+`link_single_units: true`, a code ending in its unit gets its stem also when its item has a single
+unit (`DRUG//DOSE//{category}//{item}//mg` alone gets `DRUG//DOSE//{category}//{item}`). AUMCdb uses
+the stage's default options otherwise, so a `…//UNK` code (no unit recorded) also joins its item's siblings once
 the item has a real unit. The post-stages run in this order: `sumeds_link_unit_siblings`,
 `sumeds_normalize_units`, `sumeds_enrich`. On v1.0.2 the ETL's own copy of this step (before suMEDS
 0.6.6) found 196 groups (530 codes: 186 dose, 10 rate groups) and added 196 rows.
@@ -376,11 +389,37 @@ pre-commit install
     `metadata/dataset.json` (which listed none before). Event rows and codes are otherwise
     unchanged, and nothing needs migrating; code that selects columns by position, or expects only
     the MEDS core columns, should select by name or drop it: `df.drop("icustay_id")`.
+
 - **Vocabulary parents are spelled `VOCABULARY//CODE`.** The `parent_codes` the ETL takes from the
     item dictionary (`LOINC`, `ATC`, `SNOMED`) used one slash, `LOINC/2951-2`; they now use two,
     `LOINC//2951-2`, the spelling suMEDS already writes for the parents it adds. Codes and events are
     unchanged. To migrate, respell old parents with the regex `^([^/]+)/(?!/)` → `\1//`. suMEDS and
     alignEHR already read both spellings as the same parent.
+
+- **The unit in a code is stripped of surrounding whitespace, and a blank one is `UNK`**:
+    `MEASURE//{item}//{unit}`, `DRUG//RATE//…//{rateunit}` and `DRUG//DOSE//…//{doseunit}`. Before,
+    the unit was copied as recorded: a padded unit (` °C`) gave a code of its own, and a blank or
+    empty one gave a code ending in whitespace or in `//`, with no `unit`. No output change on the
+    synthetic data; codes change only where a unit was padded or blank. To migrate, strip the last
+    component of an old code and write `UNK` for an empty one:
+    `^((?:MEASURE|DRUG//(?:RATE|DOSE))//.*//)\s*(\S(?:.*\S)?)?\s*$` → `\1\2`, then a trailing
+    `//` → `//UNK`.
+
+- **`codes.parquet` gains unit-free stem rows and stem parents for single-unit codes**
+    ([#24](https://github.com/prockenschaub/AUMCdb_MEDS/pull/24)). suMEDS's `sumeds_link_unit_siblings` now runs with `link_single_units: true`:
+    every code that ends in its unit gets the code without the unit (its stem) as its last
+    `parent_codes` entry, and the stem gets a row of its own (no unit, no events), also when the
+    item has a single unit (`DRUG//DOSE//{category}//{item}//{unit}` gets `DRUG//DOSE//{category}//{item}`, likewise `DRUG//RATE` and `MEASURE`). Before, only items recorded in two or more units did.
+    Events are unchanged. On a synthetic (MESSY-synth) build, 30 codes gain a stem parent and 30 stem rows are added (17 `DRUG//DOSE`, 13 `DRUG//RATE`). To migrate, nothing is needed unless a tool expects every
+    `codes.parquet` row to have events: drop the stem rows (no `code_template`, no `unit`), or
+    ignore a parent that is the code without its last `//` component.
+
+- **Intermediate stage outputs are no longer kept.** Up to 0.2.0, a run left each stage's output in
+    `<output_dir>/<stage>/` (`convert_to_parquet/`, `convert_to_MEDS_events/`, `sumeds_enrich/`, …). The spec now sets MEDS-Extract's
+    `etl.cleanup_intermediates: true`, so a successful run deletes those directories and keeps only
+    `data/`, `metadata/`, `.logs/` and `.meds_extract_run/`. The MEDS data and metadata are
+    unchanged. To migrate, add `"overrides=['cleanup_intermediates=false']"` to `meds-extract-run`
+    wherever you read a stage directory after the run.
 
 ## Citation
 
