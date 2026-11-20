@@ -307,8 +307,9 @@ pytest tests
 ```
 
 Every value is visibly fake, so the output is only useful for checking that the pipeline runs end
-to end. [MESSY_synth](https://github.com/mmcdermott/MESSY_synth), which generated the synthetic
-data before, still pins `MEDS-extract<0.8` and cannot read this config.
+to end. The synthetic ETL workflow also generates raw files straight from the config with
+[MESSY_synth](https://github.com/mmcdermott/MESSY_synth) 0.1.1, which reads MEDS-Extract 0.8 and 0.9
+configs.
 
 ## Summary statistics
 

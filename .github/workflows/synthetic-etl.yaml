@@ -73,8 +73,9 @@ jobs:
         run: |
           # The repository has no uv.lock, so this resolves the dependencies afresh (no --locked).
           uv sync
-          # MESSY_synth 0.1.0 is the first release that reads MEDS-Extract 0.8 configs.
-          uv pip install "MESSY_synth==0.1.0"
+          # MESSY_synth 0.1.1 reads MEDS-Extract 0.8 and 0.9 configs, so it installs next to this
+          # package's MEDS-Extract 0.9.
+          uv pip install "MESSY_synth==0.1.1"
 
       - name: Generate and extract synthetic data
         # The synthetic tables include the item dictionary, and do_download=false keeps
@@ -82,9 +83,6 @@ jobs:
         # packs); if that fails, the stage warns and keeps the ETL output.
         run: |
           uv run --no-sync MESSY-synth ./src/AUMCdb_MEDS/configs/messy.yaml -o raw_synthetic/ --explain
-          # MESSY_synth 0.1.0 pins MEDS-Extract below 0.9, so installing it downgrades MEDS-Extract;
-          # sync back to this package's MEDS-Extract (>= 0.9) before running the ETL.
-          uv sync
           uv run --no-sync meds-extract-run spec=AUMCdb output_dir=./AUMCdb_meds_synth \
             input_dir=raw_synthetic do_download=false
           for f in dataset.json codes.parquet subject_splits.parquet; do
