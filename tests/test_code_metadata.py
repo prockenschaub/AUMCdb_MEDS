@@ -2,6 +2,7 @@
 decoded with their declared encodings, and a synthetic build writes valid, described MEDS code
 metadata."""
 
+import json
 import re
 from pathlib import Path
 
@@ -216,3 +217,25 @@ def test_unit_siblings_get_their_stem_as_parent_and_row(codes: pl.DataFrame):
     rate = "DRUG//RATE//Synthetische infusen//Synthetisch infuus"
     assert rate not in rows
     assert rate not in (rows[f"{rate}//ml/uur"]["parent_codes"] or [])
+
+
+def test_events_carry_their_icu_admission(meds_output: Path, events: pl.DataFrame):
+    """Every event but the patient-level ones carries its `admissionid` as `icustay_id`."""
+    metadata = json.loads((meds_output / "metadata" / "dataset.json").read_text())
+    assert metadata["raw_source_id_columns"] == ["icustay_id"]
+    patient_level = pl.col("code").is_in(["MEDS_BIRTH", "MEDS_DEATH"]) | pl.col(
+        "code"
+    ).str.starts_with("GENDER//")
+    assert events.filter(patient_level)["icustay_id"].is_null().all()
+    stays = events.filter(~patient_level)
+    assert stays["icustay_id"].is_not_null().all()
+    # Patient 1's two admissions stay apart; every item table maps back to its admission.
+    assert set(
+        stays.filter(pl.col("subject_id") == 1)["icustay_id"].unique().to_list()
+    ) == {11, 12}
+    assert set(stays["icustay_id"].unique().to_list()) == {11, 12, 21, 31, 41, 51}
+    processes = stays.filter(pl.col("code").str.starts_with("PROCESS//"))
+    assert dict(zip(processes["subject_id"], processes["icustay_id"], strict=True)) == {
+        1: 11,
+        2: 21,
+    }

@@ -166,6 +166,18 @@ Birth, death and gender are only emitted from a patient's first admission, and g
 from the middle of the band. Death is placed at its recorded offset. See the comments in the
 config for the exact rules.
 
+### ICU stays
+
+Every event except birth, death and gender carries its ICU admission in an `icustay_id` column,
+listed under `raw_source_id_columns` in `metadata/dataset.json`. It is AmsterdamUMCdb's `admissionid`,
+"unique value to identify the admission to the ICU", which every table but `admissions` is keyed
+on ([AmsterdamUMCdb wiki, admissions](https://github.com/AmsterdamUMC/AmsterdamUMCdb/wiki/admissions)).
+An admission is to the intensive care (IC) or medium care (MC) unit, or both (`admissions.location`).
+A patient "may have multiple admissionid's during the same or another hospitalization", and the
+release has no id of the hospital stay, so there is no `hadm_id`. The column takes the name the
+MIMIC-IV ETL and the other MEDS ETLs give the ICU stay
+([alignEHR#55](https://github.com/rvandewater/alignEHR/issues/55)).
+
 ### Code metadata
 
 `metadata/codes.parquet` lists every code with a `description`, `parent_codes` where
@@ -359,6 +371,11 @@ pre-commit install
 
 ### Unreleased (after 0.2.0)
 
+- **New column `icustay_id`.** Every event except `MEDS_BIRTH`, `MEDS_DEATH` and `GENDER//…` now
+    carries its ICU admission (`admissionid`) as `icustay_id`, listed under `raw_source_id_columns` in
+    `metadata/dataset.json` (which listed none before). Event rows and codes are otherwise
+    unchanged, and nothing needs migrating; code that selects columns by position, or expects only
+    the MEDS core columns, should select by name or drop it: `df.drop("icustay_id")`.
 - **Vocabulary parents are spelled `VOCABULARY//CODE`.** The `parent_codes` the ETL takes from the
     item dictionary (`LOINC`, `ATC`, `SNOMED`) used one slash, `LOINC/2951-2`; they now use two,
     `LOINC//2951-2`, the spelling suMEDS already writes for the parents it adds. Codes and events are

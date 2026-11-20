@@ -29,15 +29,15 @@ die() {
 
 # How this repository builds each kind of dataset: `build KIND INPUT_DIR OUTPUT_DIR`, run from the
 # repository root. Prints the root of the MEDS dataset it wrote (the directory holding data/ and
-# metadata/). The build uses this checkout. This repository has no uv.lock, so the checkout is installed
-# into a throwaway environment instead of a project one that `uv run` would lock on the fly.
+# metadata/). The build uses this checkout, in the project environment with the versions in uv.lock
+# (`--locked` fails instead of re-resolving when the lock is out of date).
 build() {
   local kind=$1 input=$2 output=$3
   case $kind in
     full)
       # The spec's sumeds_enrich post-stage enriches metadata/codes.parquet after the ETL, so the
       # baseline covers the output of the documented one-command build.
-      uv run --no-project --python 3.12 --with-editable . meds-extract-run spec=AUMCdb do_download=false input_dir="$input" output_dir="$output" >&2 \
+      uv run --locked --python 3.12 meds-extract-run spec=AUMCdb do_download=false input_dir="$input" output_dir="$output" >&2 \
         && echo "$output"
       ;;
     *) die "unknown kind '$kind' (expected one of: $KINDS)" ;;
