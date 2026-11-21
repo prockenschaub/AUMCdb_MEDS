@@ -74,6 +74,12 @@ already have (no API key needed):
 meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR key=common
 ```
 
+The seven tables can also be Parquet files with the same base names (`numericitems.parquet`, …),
+next to `dictionary.csv`, which stays CSV. MEDS-Extract reads a Parquet source as it is, without
+decoding or type inference, so its columns must carry the types the CSV path infers (ids and
+offsets `Int64`, `value` `Float64`, text `String`): convert each CSV with MEDS-Extract's own
+`convert_csv_to_parquet` and the encodings the config declares.
+
 Intermediate stage outputs are deleted after a successful run, by default: the spec sets
 MEDS-Extract's `etl.cleanup_intermediates: true`, so a finished `$MEDS_DIR` holds only `data/`,
 `metadata/`, `.logs/` and `.meds_extract_run/`. A failed run keeps them, so the same command resumes
@@ -85,8 +91,10 @@ output directories reuse it.
 
 ### Resources and parallelism
 
-`numericitems.csv` alone is about 11 GB, so a full run needs a fair amount of memory and disk. You
-can trade memory for parallelism with the optional extras:
+`numericitems.csv` alone is about 80 GB (977.6 million rows), so a full run needs a fair amount of
+memory and disk. With the tables already converted to Parquet, a serial run (one worker,
+`POLARS_MAX_THREADS=4`) of 0.3.0 took about 17 minutes and peaked at about 10 GB of resident memory
+on a laptop. You can trade memory for parallelism with the optional extras:
 
 ```bash
 pip install AUMCdb_MEDS[local_parallelism] # local parallelism with hydra-joblib-launcher
@@ -149,7 +157,7 @@ Two MEDS-Extract 0.8 changes made the per-source form necessary:
     UTF-8, anything else as Windows-1252, and a file that mixes the two stops the run. On the v1.0.2
     files, detection picks UTF-8 for `admissions.csv` (plain ASCII, so the same text) and
     Windows-1252 for the other six, which is what the config declares. It would cost a full extra
-    read of every file (`numericitems.csv` alone is about 11 GB) and a warning per file, so the
+    read of every file (`numericitems.csv` alone is about 80 GB) and a warning per file, so the
     config declares the codecs instead.
 
 ## Output
@@ -382,13 +390,23 @@ pre-commit install
 
 ## Breaking changes
 
-### Unreleased (after 0.2.0)
+### 0.3.0 (2026-11-20)
+
+- Rebuilt on the complete AmsterdamUMCdb 1.0.2 release; `tests/regression/full_summary_stats.json` regenerated (the previous baseline was built from an incomplete local copy).
+    The baseline is built from the complete release for the first time, so its event and measurement
+    counts rise for that reason, not because of an ETL change: the previous local copy held about 15%
+    of `numericitems` (141,648,128 of 977,392,122 `numericitems` measurements in the new build), which
+    accounts for 835,743,994 of the 835,777,757 added measurements. The other 33,763 come from
+    `icustay_id` (below). Subject counts are unchanged.
 
 - **New column `icustay_id`.** Every event except `MEDS_BIRTH`, `MEDS_DEATH` and `GENDER//…` now
     carries its ICU admission (`admissionid`) as `icustay_id`, listed under `raw_source_id_columns` in
-    `metadata/dataset.json` (which listed none before). Event rows and codes are otherwise
-    unchanged, and nothing needs migrating; code that selects columns by position, or expects only
-    the MEDS core columns, should select by name or drop it: `df.drop("icustay_id")`.
+    `metadata/dataset.json` (which listed none before). Codes are otherwise unchanged. Rows that are
+    identical except for their admission, which the merge used to collapse into one, are now kept
+    once per admission: on the full release that adds 33,763 rows outside `numericitems` (32,911 in
+    `freetextitems`, 568 in `drugitems`, 154 in `processitems` and 130 in `listitems`). To migrate,
+    code that selects columns by position, or expects only the MEDS core columns, should select by
+    name or drop it, and `df.drop("icustay_id").unique()` restores the old rows.
 
 - **Vocabulary parents are spelled `VOCABULARY//CODE`.** The `parent_codes` the ETL takes from the
     item dictionary (`LOINC`, `ATC`, `SNOMED`) used one slash, `LOINC/2951-2`; they now use two,

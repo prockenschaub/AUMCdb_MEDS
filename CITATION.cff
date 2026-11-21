@@ -13,7 +13,6 @@ authors:
   family-names: Renc
 - given-names: Matthew
   family-names: McDermott
-date-released: '2025-11-05'
 doi: 10.5281/zenodo.17531824
 repository-code: "https://github.com/prockenschaub/AUMCdb_MEDS"
 license: "MIT"
