@@ -40,8 +40,9 @@ dependencies = [
   # 0.9.2 is the first MEDS-Extract release that reads the spec's
   # `etl.cleanup_intermediates` (mmcdermott/MEDS_extract#340).
   "MEDS-extract[download]>=0.9.2,<0.10",
-  # suMEDS 0.6.10 ships `UnitComponentContract`, which tests/test_unit_component.py runs on the spec.
-  "sumeds>=0.6.10,<0.7",
+  # suMEDS 0.6.10 ships `UnitComponentContract`, which tests/test_unit_component.py runs on the spec;
+  # 0.6.11 adds its `require_unit_in_code` option.
+  "sumeds>=0.6.11,<0.7",
 ]
 
 [tool.setuptools_scm]
@@ -51,7 +52,7 @@ AUMCdb_MEDS = ["configs/*.yaml", "sumeds_rules.yaml"]
 
 [project.optional-dependencies]
 # suMEDS's `testing` extra: `UnitComponentContract` (tests/test_unit_component.py) and dftly.
-dev = ["pre-commit<4", "pytest", "sumeds[testing]>=0.6.10,<0.7"]
+dev = ["pre-commit<4", "pytest", "sumeds[testing]>=0.6.11,<0.7"]
 local_parallelism = ["hydra-joblib-launcher"]
 slurm_parallelism = ["hydra-submitit-launcher"]
 
