@@ -66,8 +66,9 @@ meds-extract-run spec=AUMCdb output_dir=$MEDS_DIR do_download=false input_dir=$R
 `$RAW_DATA_DIR` should contain the seven AUMCdb CSVs (`admissions.csv`, `numericitems.csv`,
 `listitems.csv`, `freetextitems.csv`, `procedureorderitems.csv`, `processitems.csv` and
 `drugitems.csv`) as distributed, without converting their encoding, plus the public item
-dictionary `dictionary.csv` that the code descriptions are built from (see
-[Code metadata](#code-metadata)). The download fetches it with the data; to add it to a copy you
+dictionary `dictionary.csv` that the code descriptions are built from and AmsterdamUMC's public OMOP
+concept dictionary `omop_dictionary.csv` that documents the unit of items recorded without one (see
+[Code metadata](#code-metadata)). The download fetches both with the data; to add them to a copy you
 already have (no API key needed):
 
 ```bash
@@ -75,7 +76,7 @@ meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR key=common
 ```
 
 The seven tables can also be Parquet files with the same base names (`numericitems.parquet`, …),
-next to `dictionary.csv`, which stays CSV. MEDS-Extract reads a Parquet source as it is, without
+next to `dictionary.csv` and `omop_dictionary.csv`, which stay CSV. MEDS-Extract reads a Parquet source as it is, without
 decoding or type inference, so its columns must carry the types the CSV path infers (ids and
 offsets `Int64`, `value` `Float64`, text `String`): convert each CSV with MEDS-Extract's own
 `convert_csv_to_parquet` and the encodings the config declares.
@@ -229,8 +230,24 @@ same value as the code's last component, so tools can read the unit without pars
 the codes are unchanged (`…//°C` keeps its name), and a code ending in `UNK` has no unit. The unit in
 a code is stripped of surrounding whitespace; missing or blank is `UNK`. MEDS-Extract compares units
 the same way when it writes `unit` (stripped, blanks dropped), so ` °C` and `°C` give one code. The dictionary's own `unit` column agrees with
-the data for every numeric item and adds none (no `MEASURE` code lacks a unit; drug items have no
-dictionary unit).
+the data for every numeric item and adds none (drug items have no dictionary unit).
+
+**Placeholder units and documented units.** AmsterdamUMCdb records the placeholders `Geen` ("none")
+and `None` as the unit of some numeric items, among them the monitor's SpO2, respiratory rate and
+FiO2 (146 M of the 984 M numeric values of v1.0.2, on 436 `MEASURE` codes). Neither is a unit: the
+code keeps the placeholder as its last component (`MEASURE//Saturatie (Monitor)//None`), but its
+`unit` is not the placeholder. For 57 of these items AmsterdamUMC documents the unit in the concept
+dictionary of its OMOP CDM conversion
+([`amsterdamumcdb/dictionary/dictionary.csv`](https://github.com/AmsterdamUMC/AmsterdamUMCdb/blob/5422b94dbaba6c1d9b7c301f059c425ca1fc13ce/amsterdamumcdb/dictionary/dictionary.csv),
+MIT, same commit as the item dictionary; rows with `source_vocabulary_id` `AUMC Numeric Unit`,
+`source_code_description` the item name and `concept_code` the UCUM unit). That file is downloaded
+with the item dictionary (`omop_dictionary.csv`) and joined on the item name (`_metadata: omop_dictionary:`), and those codes get its unit: `%` for SpO2 (6709), FiO2 (12279, 12282, 6699) and
+other percentages, `/min` for respiratory rates (8874, 8873, 8850, 7726, 8853). On
+v1.0.2 that is 115.6 M values; the medians agree with the unit (SpO2 96.6 %, respiratory rate 18.8
+/min, FiO2 40 to 41 %). The other placeholder codes get no unit. The dictionary's four other `AUMC Numeric Unit` rows are for items with a recorded unit, which stays.
+
+Such a code no longer ends in its unit, so it gets no unit-free stem from `sumeds_link_unit_siblings`
+(below): its item has no unit to strip.
 
 MEDS-Extract (since 0.9.0) writes `unit` as one string per code and fails if any code has more
 than one unit. The first post-stage, suMEDS's shared `sumeds_link_unit_siblings`
@@ -389,6 +406,21 @@ pre-commit install
 ```
 
 ## Breaking changes
+
+### Unreleased
+
+- **`unit` of codes recorded with the placeholder unit `Geen` or `None`.** Codes are unchanged; only
+    `metadata/codes.parquet` changes. 57 items whose unit AmsterdamUMC documents in the concept
+    dictionary of its OMOP conversion now carry that unit (`MEASURE//Saturatie (Monitor)//None`:
+    `None` becomes `%`; `MEASURE//Ademfrequentie Monitor//None`: `/min`; `MEASURE//O2 concentratie//Geen`: `%`), and the other placeholder codes have no `unit` (null) instead of the
+    placeholder; `unit_source_value` follows `unit`. On v1.0.2: 57 codes with 115.6 M values gain a
+    unit, 379 codes with 30.6 M values go from the placeholder to null. These codes no longer end in
+    their unit, so they lose their unit-free stem: on v1.0.2, 436 stem rows (`MEASURE//{item}`, no
+    events) leave `codes.parquet` and the 436 codes lose that last `parent_codes` entry; their
+    vocabulary parents stay. To migrate, read a placeholder as no unit, or take the stem as the code
+    without `//Geen` or `//None` (regex `//(Geen|None)$`). The ETL now downloads a second public file
+    (`omop_dictionary.csv`); for a pre-staged `input_dir`, fetch it with `meds-extract-download spec=AUMCdb output_dir=$RAW_DATA_DIR key=common`. `tests/regression/full_summary_stats.json` needs
+    a rebuild on the full release (`code_metadata.n_codes` and `n_with_parent_codes`).
 
 ### 0.3.0 (2026-11-20)
 

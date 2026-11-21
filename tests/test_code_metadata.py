@@ -17,6 +17,8 @@ from AUMCdb_MEDS import MESSY_CFG
 CFG = yaml.safe_load(MESSY_CFG.read_text())
 NOT_TABLES = {"sources", "etl", "_defaults"}
 DICTIONARY_PREFIX = "dictionary"
+# AmsterdamUMC's OMOP concept dictionary: the documented unit of items recorded as `Geen` or `None`.
+OMOP_DICTIONARY_PREFIX = "omop_dictionary"
 # Parents the ETL emits: only the dictionary's own item-level codes. Other vocabulary tagging
 # (e.g. OMOP Gender) is left to suMEDS (`sumeds_rules.yaml`, tests/test_sumeds_rules.py).
 OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)//[^/]+$")
@@ -44,13 +46,34 @@ def test_every_event_describes_its_codes():
 
 def test_dictionary_source_is_pinned():
     (entry,) = CFG["sources"]["common"]
-    (url,) = entry["urls"]
-    assert re.search(
-        r"/AmsterdamUMC/AmsterdamUMCdb/[0-9a-f]{40}/amsterdamumcdb/dictionary/legacy/dictionary\.csv$",
-        url["url"],
-    ), url["url"]
-    assert re.fullmatch(r"[0-9a-f]{64}", url["sha256"])
-    assert url["rel_path"] == f"{DICTIONARY_PREFIX}.csv"
+    legacy, omop = entry["urls"]
+    for url, path, prefix in (
+        (legacy, "dictionary/legacy/dictionary", DICTIONARY_PREFIX),
+        (omop, "dictionary/dictionary", OMOP_DICTIONARY_PREFIX),
+    ):
+        assert re.search(
+            rf"/AmsterdamUMC/AmsterdamUMCdb/[0-9a-f]{{40}}/amsterdamumcdb/{path}\.csv$",
+            url["url"],
+        ), url["url"]
+        assert re.fullmatch(r"[0-9a-f]{64}", url["sha256"])
+        assert url["rel_path"] == f"{prefix}.csv"
+    # Both files come from the same commit.
+    assert legacy["url"].split("/")[5] == omop["url"].split("/")[5]
+
+
+def test_only_numericitems_take_the_documented_unit():
+    """The OMOP concept dictionary only gives units, only to numericitems codes, and only from its
+    `AUMC Numeric Unit` rows."""
+    blocks = {
+        f"{table}/{name}": event["_metadata"][OMOP_DICTIONARY_PREFIX]
+        for table, name, event in _events()
+        if OMOP_DICTIONARY_PREFIX in event.get("_metadata", {})
+    }
+    assert set(blocks) == {"numericitems/event"}
+    block = blocks["numericitems/event"]
+    assert set(block) == {"item", "unit"}
+    assert block["item"] == "$source_code_description"
+    assert '$source_vocabulary_id == "AUMC Numeric Unit"' in block["unit"]
 
 
 def test_dictionary_blocks_are_scoped_to_their_table():
@@ -90,9 +113,10 @@ def test_every_source_declares_its_encoding():
     as Windows-1252, the dictionary as UTF-8."""
     encoding = CFG["etl"]["encoding"]
     tables = {table for table in CFG if table not in NOT_TABLES}
-    assert set(encoding) == tables | {DICTIONARY_PREFIX}
+    assert set(encoding) == tables | {DICTIONARY_PREFIX, OMOP_DICTIONARY_PREFIX}
     assert {encoding[table] for table in tables} == {"cp1252"}
     assert encoding[DICTIONARY_PREFIX] == "utf8"
+    assert encoding[OMOP_DICTIONARY_PREFIX] == "utf8"
 
 
 def test_sources_are_decoded_with_their_declared_encodings(codes: pl.DataFrame):
@@ -165,7 +189,8 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
     """Every code with a numeric value gets the unit of its own rows as `unit` metadata: as recorded
     (`unit_source_value`), the same value as the code's last component (both stripped of surrounding
     whitespace; the code says `UNK` where there is none); in `unit`, written in UCUM by suMEDS's
-    `sumeds_normalize_units`."""
+    `sumeds_normalize_units`. The placeholders `Geen` and `None` are no unit: such a code gets the
+    unit the OMOP concept dictionary documents for its item, or none."""
     # MEDS-Extract (>= 0.9) writes it as one String per code.
     assert codes.schema["unit"] == pl.String
     units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
@@ -181,6 +206,9 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
             "mL/h",
             "ml/uur",
         ),
+        # `Geen`, with the unit documented for the item; `None`, for an item without one.
+        "MEASURE//Synthetische saturatie//Geen": ("%", "%"),
+        "MEASURE//Synthetische score//None": (None, None),
     }
     for code, unit in expected.items():
         assert (units[code], recorded[code]) == unit, code
@@ -192,9 +220,13 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         )
         & pl.col("code_template").is_not_null()  # stem rows have no template
     )
-    assert numeric.height == 9
+    assert numeric.height == 11
+    placeholder = pl.col("code").str.contains(r"//(Geen|None)$")
+    assert numeric.filter(placeholder).height == 2
     for code, unit in zip(
-        numeric["code"], numeric["unit_source_value"].to_list(), strict=True
+        numeric.filter(~placeholder)["code"],
+        numeric.filter(~placeholder)["unit_source_value"].to_list(),
+        strict=True,
     ):
         # The unit is stripped in both; a code whose unit is missing or blank ends in `UNK`.
         assert code.endswith(f"//{unit or 'UNK'}"), code
@@ -205,6 +237,9 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         is None
     )
     assert units["MEDS_BIRTH"] is None
+    # A placeholder code does not end in its unit, so it gets no unit-free stem.
+    assert "MEASURE//Synthetische saturatie" not in units
+    assert "MEASURE//Synthetische score" not in units
     # The blank dose unit gives an `UNK` code without a unit, not a code ending in whitespace.
     assert units["DRUG//DOSE//Synthetische infusen//Synthetisch infuus//UNK"] is None
     assert not codes.filter(pl.col("code").str.contains(r"(\s|//)$")).height

@@ -61,7 +61,8 @@ Synthetisch specialisme B
 Synthetisch specialisme C
 """
 
-# Item tables, written as Windows-1252. Item names are made up but Dutch-like; one per table, plus
+# Item tables, written as Windows-1252. Two numeric items record the placeholder unit `Geen` or
+# `None`; the OMOP concept dictionary below documents a unit for the first one only. Item names are made up but Dutch-like; one per table, plus
 # a lab item. The second Patiëntgewicht row has the -1899 offset that must be dropped. Some units
 # are padded with whitespace (` °C `, `/min `, `ml/uur `) and one dose unit is blank: the codes strip
 # them, and the blank one is `UNK`.
@@ -76,6 +77,9 @@ updatedat,updatedby,islabresult,fluidout
 31,9001,Synthetische hartslag,,95,1,/min,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
 41,9002,Synthetische temperatuur,,38.1,2, °C ,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
 51,9001,Synthetische hartslag,,70,1,/min ,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
+11,9005,Synthetische saturatie,,97,5,Geen,,3600000,3600000,ICV_IC-Verpleegkundig,,,0,
+31,9005,Synthetische saturatie,,95,5,Geen,,1800000,1800000,ICV_IC-Verpleegkundig,,,0,
+11,9006,Synthetische score,,3,6,None,,3600000,3600000,ICV_IC-Verpleegkundig,,,0,
 """
 
 LISTITEMS = """\
@@ -159,6 +163,9 @@ DICTIONARY_ROWS = [
      "", "LOINC", "29463-7", ""),
     ("numericitems", 9004, "Synthetisch natrium", "", "Synthetisch lab", "synthetic lab", "LOINC", "2951-2",
      ""),
+    ("numericitems", 9005, "Synthetische saturatie", "synthetic saturation", "Synthetische vitale functies",
+     "synthetic vitals", "", "", ""),
+    ("numericitems", 9006, "Synthetische score", "", "Synthetische scores", "", "", "", ""),
     ("listitems", 9101, "Synthetisch bewustzijn", "synthetic consciousness", "Synthetische neurologie", "",
      "SNOMED CT", "271649006", "Geïrriteerd"),
     ("listitems", 9101, "Synthetisch bewustzijn", "synthetic consciousness", "Synthetische neurologie", "",
@@ -180,6 +187,46 @@ DICTIONARY_ROWS = [
 ]  # fmt: skip
 
 
+# Header of amsterdamumcdb/dictionary/dictionary.csv (the OMOP concept dictionary) at the commit
+# pinned in `sources.common`, in its order.
+OMOP_DICTIONARY_COLUMNS = [
+    "concept_id", "concept_name", "domain_id", "concept_class_id", "vocabulary_id", "concept_code",
+    "source_vocabulary_id", "source_code", "source_code_description", "value_of_concept_id",
+    "value_of_source_code", "source_frequency", "source_frequency_validated", "mapping_status",
+    "equivalence",
+]  # fmt: skip
+# Its rows: the unit of the `Geen` item (`AUMC Numeric Unit`), and rows of another source
+# vocabulary that name numeric items too, which must not give them a unit. Ids are made up.
+OMOP_DICTIONARY_ROWS = [
+    {"concept_id": "1", "concept_name": "percent", "domain_id": "Unit", "concept_class_id": "Unit",
+     "vocabulary_id": "UCUM", "concept_code": "%", "source_vocabulary_id": "AUMC Numeric Unit",
+     "source_code": "9005", "source_code_description": "Synthetische saturatie",
+     "mapping_status": "APPROVED", "equivalence": "EQUAL"},
+    {"concept_id": "2", "concept_name": "Synthetic saturation", "domain_id": "Measurement",
+     "concept_class_id": "Clinical Observation", "vocabulary_id": "LOINC", "concept_code": "0000-0",
+     "source_vocabulary_id": "AUMC Numeric", "source_code": "9005",
+     "source_code_description": "Synthetische saturatie", "mapping_status": "APPROVED",
+     "equivalence": "EQUAL"},
+    {"concept_id": "3", "concept_name": "Synthetic score", "domain_id": "Measurement",
+     "concept_class_id": "Clinical Observation", "vocabulary_id": "LOINC", "concept_code": "0000-1",
+     "source_vocabulary_id": "AUMC Numeric", "source_code": "9006",
+     "source_code_description": "Synthetische score", "mapping_status": "APPROVED",
+     "equivalence": "EQUAL"},
+]  # fmt: skip
+
+
+def _omop_dictionary_bytes() -> bytes:
+    """The fixture OMOP concept dictionary, written like the published file: UTF-8, no byte-order mark."""
+    buffer = io.StringIO()
+    writer = csv.DictWriter(
+        buffer, fieldnames=OMOP_DICTIONARY_COLUMNS, lineterminator="\n"
+    )
+    writer.writeheader()
+    for row in OMOP_DICTIONARY_ROWS:
+        writer.writerow(dict.fromkeys(OMOP_DICTIONARY_COLUMNS, "") | row)
+    return buffer.getvalue().encode("utf-8")
+
+
 def _dictionary_bytes() -> bytes:
     """The fixture dictionary, written like the published file: UTF-8 with a byte-order mark."""
     buffer = io.StringIO()
@@ -199,6 +246,7 @@ def raw_dir(tmp_path_factory) -> Path:
     for name, content in ITEM_TABLES.items():
         (raw_dir / f"{name}.csv").write_bytes(content.encode("cp1252"))
     (raw_dir / "dictionary.csv").write_bytes(_dictionary_bytes())
+    (raw_dir / "omop_dictionary.csv").write_bytes(_omop_dictionary_bytes())
     return raw_dir
 
 
