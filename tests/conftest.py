@@ -62,7 +62,8 @@ Synthetisch specialisme C
 """
 
 # Item tables, written as Windows-1252. Two numeric items record the placeholder unit `Geen` or
-# `None`; the OMOP concept dictionary below documents a unit for the first one only. Item names are made up but Dutch-like; one per table, plus
+# `None`; the OMOP concept dictionary below documents a unit for the first one only, so their codes
+# end in that unit and in `UNK`. Item names are made up but Dutch-like; one per table, plus
 # a lab item. The second Patiëntgewicht row has the -1899 offset that must be dropped. Some units
 # are padded with whitespace (` °C `, `/min `, `ml/uur `) and one dose unit is blank: the codes strip
 # them, and the blank one is `UNK`.
@@ -195,13 +196,26 @@ OMOP_DICTIONARY_COLUMNS = [
     "value_of_source_code", "source_frequency", "source_frequency_validated", "mapping_status",
     "equivalence",
 ]  # fmt: skip
-# Its rows: the unit of the `Geen` item (`AUMC Numeric Unit`), and rows of another source
-# vocabulary that name numeric items too, which must not give them a unit. Ids are made up.
+# Its rows: the unit of the `Geen` item (`AUMC Numeric Unit`); a unit for the heart rate, whose
+# recorded `/min` must stay (as for the real file's creatinine, MCHC and TSH rows); rows of other
+# source vocabularies that name numeric items too, which must not give them a unit. One source code is
+# not an itemid (`9005-1`, as the real file's value codes), so `source_code` is read as text, as in
+# the real file. Ids are made up.
 OMOP_DICTIONARY_ROWS = [
     {"concept_id": "1", "concept_name": "percent", "domain_id": "Unit", "concept_class_id": "Unit",
      "vocabulary_id": "UCUM", "concept_code": "%", "source_vocabulary_id": "AUMC Numeric Unit",
      "source_code": "9005", "source_code_description": "Synthetische saturatie",
      "mapping_status": "APPROVED", "equivalence": "EQUAL"},
+    {"concept_id": "4", "concept_name": "counts per minute", "domain_id": "Unit",
+     "concept_class_id": "Unit", "vocabulary_id": "UCUM", "concept_code": "{counts}/min",
+     "source_vocabulary_id": "AUMC Numeric Unit", "source_code": "9001",
+     "source_code_description": "Synthetische hartslag", "mapping_status": "APPROVED",
+     "equivalence": "EQUAL"},
+    {"concept_id": "5", "concept_name": "Synthetic value", "domain_id": "Meas Value",
+     "concept_class_id": "Answer", "vocabulary_id": "LOINC", "concept_code": "LA0000-0",
+     "source_vocabulary_id": "AUMC Meas Value", "source_code": "9005-1",
+     "source_code_description": "Synthetische saturatie", "mapping_status": "APPROVED",
+     "equivalence": "EQUAL"},
     {"concept_id": "2", "concept_name": "Synthetic saturation", "domain_id": "Measurement",
      "concept_class_id": "Clinical Observation", "vocabulary_id": "LOINC", "concept_code": "0000-0",
      "source_vocabulary_id": "AUMC Numeric", "source_code": "9005",
