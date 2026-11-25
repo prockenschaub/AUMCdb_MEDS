@@ -2,6 +2,7 @@
 decoded with their declared encodings, and a synthetic build writes valid, described MEDS code
 metadata."""
 
+import io
 import json
 import re
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 import polars as pl
 import pyarrow.parquet as pq
 import yaml
-from conftest import DICTIONARY_COLUMNS
+from conftest import DICTIONARY_COLUMNS, NUMERICITEMS
 from meds import CodeMetadataSchema
 
 from AUMCdb_MEDS import MESSY_CFG
@@ -17,6 +18,8 @@ from AUMCdb_MEDS import MESSY_CFG
 CFG = yaml.safe_load(MESSY_CFG.read_text())
 NOT_TABLES = {"sources", "etl", "_defaults"}
 DICTIONARY_PREFIX = "dictionary"
+# AmsterdamUMC's OMOP concept dictionary: the documented unit of items recorded as `Geen` or `None`.
+OMOP_DICTIONARY_PREFIX = "omop_dictionary"
 # Parents the ETL emits: only the dictionary's own item-level codes. Other vocabulary tagging
 # (e.g. OMOP Gender) is left to suMEDS (`sumeds_rules.yaml`, tests/test_sumeds_rules.py).
 OMOP_PARENT = re.compile(r"^(LOINC|ATC|SNOMED)//[^/]+$")
@@ -44,13 +47,44 @@ def test_every_event_describes_its_codes():
 
 def test_dictionary_source_is_pinned():
     (entry,) = CFG["sources"]["common"]
-    (url,) = entry["urls"]
-    assert re.search(
-        r"/AmsterdamUMC/AmsterdamUMCdb/[0-9a-f]{40}/amsterdamumcdb/dictionary/legacy/dictionary\.csv$",
-        url["url"],
-    ), url["url"]
-    assert re.fullmatch(r"[0-9a-f]{64}", url["sha256"])
-    assert url["rel_path"] == f"{DICTIONARY_PREFIX}.csv"
+    legacy, omop = entry["urls"]
+    for url, path, prefix in (
+        (legacy, "dictionary/legacy/dictionary", DICTIONARY_PREFIX),
+        (omop, "dictionary/dictionary", OMOP_DICTIONARY_PREFIX),
+    ):
+        assert re.search(
+            rf"/AmsterdamUMC/AmsterdamUMCdb/[0-9a-f]{{40}}/amsterdamumcdb/{path}\.csv$",
+            url["url"],
+        ), url["url"]
+        assert re.fullmatch(r"[0-9a-f]{64}", url["sha256"])
+        assert url["rel_path"] == f"{prefix}.csv"
+    # Both files come from the same commit.
+    assert legacy["url"].split("/")[5] == omop["url"].split("/")[5]
+
+
+def test_only_numericitems_join_the_documented_unit():
+    """The OMOP concept dictionary is joined only by numericitems, on the itemid plus the literal
+    `AUMC Numeric Unit`, so only those rows join (at most one per itemid: no event is duplicated),
+    and it gives only their unit; no `_metadata` block reads it."""
+    joins = {
+        table: body["_table"]["joins"][OMOP_DICTIONARY_PREFIX]
+        for table, body in CFG.items()
+        if table not in NOT_TABLES
+        and OMOP_DICTIONARY_PREFIX in body.get("_table", {}).get("joins", {})
+    }
+    assert set(joins) == {"numericitems"}
+    join = joins["numericitems"]
+    assert join["right_on"] == ["source_code", "source_vocabulary_id"]
+    assert join["cols"] == ["concept_code"]
+    cols = CFG["numericitems"]["_table"]["cols"]
+    itemid, vocabulary = join["left_on"]
+    assert cols[itemid] == "($itemid)::str"
+    assert cols[vocabulary] == "'AUMC Numeric Unit'"
+    assert not [
+        f"{table}/{name}"
+        for table, name, event in _events()
+        if OMOP_DICTIONARY_PREFIX in event.get("_metadata", {})
+    ]
 
 
 def test_dictionary_blocks_are_scoped_to_their_table():
@@ -90,9 +124,10 @@ def test_every_source_declares_its_encoding():
     as Windows-1252, the dictionary as UTF-8."""
     encoding = CFG["etl"]["encoding"]
     tables = {table for table in CFG if table not in NOT_TABLES}
-    assert set(encoding) == tables | {DICTIONARY_PREFIX}
+    assert set(encoding) == tables | {DICTIONARY_PREFIX, OMOP_DICTIONARY_PREFIX}
     assert {encoding[table] for table in tables} == {"cp1252"}
     assert encoding[DICTIONARY_PREFIX] == "utf8"
+    assert encoding[OMOP_DICTIONARY_PREFIX] == "utf8"
 
 
 def test_sources_are_decoded_with_their_declared_encodings(codes: pl.DataFrame):
@@ -165,7 +200,8 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
     """Every code with a numeric value gets the unit of its own rows as `unit` metadata: as recorded
     (`unit_source_value`), the same value as the code's last component (both stripped of surrounding
     whitespace; the code says `UNK` where there is none); in `unit`, written in UCUM by suMEDS's
-    `sumeds_normalize_units`."""
+    `sumeds_normalize_units`. The placeholders `Geen` and `None` are no unit: in their place the
+    code ends in the unit the OMOP concept dictionary documents for its item, or in `UNK`."""
     # MEDS-Extract (>= 0.9) writes it as one String per code.
     assert codes.schema["unit"] == pl.String
     units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
@@ -181,6 +217,10 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
             "mL/h",
             "ml/uur",
         ),
+        # Recorded as `Geen`, with the unit documented for the item; as `None`, for an item without
+        # one.
+        "MEASURE//Synthetische saturatie//%": ("%", "%"),
+        "MEASURE//Synthetische score//UNK": (None, None),
     }
     for code, unit in expected.items():
         assert (units[code], recorded[code]) == unit, code
@@ -192,7 +232,7 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         )
         & pl.col("code_template").is_not_null()  # stem rows have no template
     )
-    assert numeric.height == 9
+    assert numeric.height == 11
     for code, unit in zip(
         numeric["code"], numeric["unit_source_value"].to_list(), strict=True
     ):
@@ -205,6 +245,8 @@ def test_numeric_codes_carry_their_unit(codes: pl.DataFrame):
         is None
     )
     assert units["MEDS_BIRTH"] is None
+    # No code keeps a placeholder unit.
+    assert not codes.filter(pl.col("code").str.contains(r"//(Geen|None)$")).height
     # The blank dose unit gives an `UNK` code without a unit, not a code ending in whitespace.
     assert units["DRUG//DOSE//Synthetische infusen//Synthetisch infuus//UNK"] is None
     assert not codes.filter(pl.col("code").str.contains(r"(\s|//)$")).height
@@ -263,3 +305,22 @@ def test_padded_units_give_the_stripped_code(events: pl.DataFrame):
     )
     assert counts["DRUG//DOSE//Synthetische infusen//Synthetisch infuus//UNK"] == 1
     assert not events.filter(pl.col("code").str.contains(r"(\s|//)$")).height
+
+
+def test_placeholder_units_give_the_documented_unit_or_unk(events: pl.DataFrame):
+    """Rows recorded with the placeholder unit `Geen` or `None` get a code ending in the unit the OMOP
+    concept dictionary documents for the item, or in `UNK`. The join adds no row: every numericitems
+    row but the dropped `-1899` one is one event. The dictionary's unit for an item with a recorded
+    unit (the heart rate's `/min`) and its rows of other source vocabularies change nothing."""
+    raw = pl.read_csv(io.StringIO(NUMERICITEMS), infer_schema_length=None)
+    # Only numericitems give `MEASURE` events with a numeric value (every fixture row has one).
+    measures = events.filter(
+        pl.col("code").str.starts_with("MEASURE//")
+        & pl.col("numeric_value").is_not_null()
+    )
+    assert measures.height == raw.filter(pl.col("measuredat") != -1899).height
+    counts = dict(measures["code"].value_counts().iter_rows())
+    assert counts["MEASURE//Synthetische saturatie//%"] == 2
+    assert counts["MEASURE//Synthetische score//UNK"] == 1
+    assert counts["MEASURE//Synthetische hartslag///min"] == 3
+    assert not events.filter(pl.col("code").str.contains(r"//(Geen|None)$")).height

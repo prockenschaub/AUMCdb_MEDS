@@ -60,6 +60,16 @@ sources:
         - url: https://raw.githubusercontent.com/AmsterdamUMC/AmsterdamUMCdb/5422b94dbaba6c1d9b7c301f059c425ca1fc13ce/amsterdamumcdb/dictionary/legacy/dictionary.csv
           rel_path: dictionary.csv
           sha256: c1fa29d5c3efca7adf048efc7a67e649f9f0c3728a574eeeda0004125054ab4b
+        # The concept dictionary of AmsterdamUMC's OMOP CDM conversion, from the same repository and
+        # commit (MIT licence): one row per source code and the OMOP concept it maps to. Only its
+        # `AUMC Numeric Unit` rows are used: per numericitems item (source_code = itemid), the UCUM
+        # unit (concept_code) of items whose recorded unit is the placeholder `Geen` or `None`. The
+        # `numericitems` block below joins them on the itemid and puts the unit in the code; nothing
+        # from the file is copied into this repository. For a pre-staged input_dir it is fetched
+        # with the item dictionary (`key=common`).
+        - url: https://raw.githubusercontent.com/AmsterdamUMC/AmsterdamUMCdb/5422b94dbaba6c1d9b7c301f059c425ca1fc13ce/amsterdamumcdb/dictionary/dictionary.csv
+          rel_path: omop_dictionary.csv
+          sha256: 3dfb898825434282de6104f057dd858671cbc4ccfde1e2d1e76965b1c21bfe30
 
 etl:
   dataset_name: AUMCdb
@@ -81,6 +91,8 @@ etl:
     processitems: cp1252
     drugitems: cp1252
     dictionary: utf8
+    # UTF-8 without a byte-order mark.
+    omop_dictionary: utf8
   # Written to metadata/dataset.json: the dataset's DANS DataVerse page. No `license`: the page
   # lists the DANS Licence, and access also requires AmsterdamUMCdb's own end user license
   # agreement, so neither name alone describes the terms.
@@ -248,7 +260,9 @@ admissions:
 # Units: every event with a numeric value (numericitems, drug rate and dose) also writes the unit of
 # its own rows as the code's `unit` metadata (`_metadata: _self:`), so tools can read it without
 # parsing the code. It is the same column, as recorded, that already forms the code's last
-# component, so every code has exactly one unit (null where the code says `UNK`). The dictionary's
+# component, so every code has exactly one unit (null where the code says `UNK`). The placeholders
+# `Geen` and `None` are no unit: in their place the code ends in the unit AmsterdamUMC documents for
+# the item in its OMOP concept dictionary (`omop_dictionary`), or in `UNK`. The dictionary's
 # own `unit` column is not used: its join is on the item alone, so it would put one unit on every
 # unit variant of an item.
 # ---------------------------------------------------------------------------
@@ -257,17 +271,42 @@ numericitems:
   _table:
     joins:
       admissions: { key: admissionid, cols: [patientid, admissionyeargroup] }
+      # The unit AmsterdamUMC documents for items recorded with a placeholder unit: the
+      # `AUMC Numeric Unit` rows of the concept dictionary of its OMOP CDM conversion
+      # (https://github.com/AmsterdamUMC/AmsterdamUMCdb/blob/5422b94dbaba6c1d9b7c301f059c425ca1fc13ce/amsterdamumcdb/dictionary/dictionary.csv,
+      # built from https://github.com/AmsterdamUMC/AMSTEL/blob/main/data/mappings/numericitems_unit.usagi.csv):
+      # source_code = itemid, concept_code = UCUM unit. The file has rows of other source
+      # vocabularies for the same itemids, so the key includes the literal `AUMC Numeric Unit`
+      # (`_omop_vocabulary`): only those rows join, at most one per itemid, so no event is
+      # duplicated. `source_code` is a String column (other vocabularies have codes like
+      # `12129-23`), hence the itemid as text.
+      omop_dictionary:
+        left_on: [_omop_itemid, _omop_vocabulary]
+        right_on: [source_code, source_vocabulary_id]
+        cols: [concept_code]
     cols:
       _origin: "(((extract /2003|2010/ from $admissionyeargroup)::int)::year)::datetime"
       measuredattime: "$_origin + ($measuredat / 1000)::seconds if $measuredat != -1899"
+      _omop_itemid: ($itemid)::str
+      _omop_vocabulary: "'AUMC Numeric Unit'"
+      # The recorded unit, stripped of surrounding whitespace, as MEDS-Extract compares units when
+      # it writes `codes.parquet` (stripped, blanks dropped), so ` mg` and `mg` give one code. dftly
+      # 0.7 has no strip function, so the extract takes the text from the first to the last
+      # non-whitespace character (`(?s)` lets it span line breaks), which is null when there is none.
+      _recorded_unit: 'extract /(?s)\S(?:.*\S)?/ from $unit'
+      # The placeholders `Geen` ("none") and `None` that some items record as unit; neither is one.
+      _unit_placeholder: "/^(?:Geen|None)$/ in $_recorded_unit"
       # The unit as the code's last component, under another name than `unit`: MEDS-Extract
       # rejects a `_metadata` output named like a code component, so the code cannot read `$unit`
-      # and still write a `unit` metadata column. It is stripped of surrounding whitespace, and
-      # `UNK` where it is missing or blank, as MEDS-Extract compares units when it writes
-      # `codes.parquet` (stripped, blanks dropped), so ` mg` and `mg` give one code. dftly 0.7 has
-      # no strip function, so the extract takes the text from the first to the last non-whitespace
-      # character (`(?s)` lets it span line breaks), which is null when there is none.
-      _value_unit: '(extract /(?s)\S(?:.*\S)?/ from $unit) ?? "UNK"'
+      # and still write a `unit` metadata column. It is the recorded unit, except for a
+      # placeholder: then it is the unit AmsterdamUMC documents for the item (`concept_code`,
+      # joined above), or `UNK`. 57 items recorded as `Geen` or `None` in v1.0.2 are documented
+      # (SpO2 `%`, respiratory rate `/min`, FiO2 `%`, ...). The dictionary's four other
+      # `AUMC Numeric Unit` rows are for items with a recorded unit, which stays: creatinine (6836,
+      # `µmol` for umol/L), MCHC (11910 and 18666, `mmol/cel` for mmol/L) and TSH (7071, `nmol/l`,
+      # mapped to mU/L). Missing or blank is `UNK`.
+      _value_unit: >-
+        (($concept_code ?? "UNK") if $_unit_placeholder else $_recorded_unit) ?? "UNK"
   event:
     code: 'f"MEASURE//{$item ?? ''UNK''}//{$_value_unit}"'
     time: $measuredattime
@@ -275,7 +314,10 @@ numericitems:
     numeric_value: $value
     _metadata:
       _self:
-        unit: $unit
+        # The unit as recorded (MEDS-Extract strips it and drops a blank one), so it is the code's
+        # last component; for a placeholder, the documented unit the code ends in, or null where the
+        # code ends in `UNK`.
+        unit: $concept_code if $_unit_placeholder else $unit
       dictionary:
         item: $item
         description: >-
