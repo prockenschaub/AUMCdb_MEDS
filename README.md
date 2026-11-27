@@ -411,7 +411,7 @@ pre-commit install
 
 ## Breaking changes
 
-### Unreleased
+### 0.4.0 (2026-11-27)
 
 - **Codes recorded with the placeholder unit `Geen` or `None` end in the documented unit or in
     `UNK`.** 436 `MEASURE` code strings change; events are otherwise unchanged (same rows, same
